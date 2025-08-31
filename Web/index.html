@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Control ESP32 via MQTT</title>
+    <link rel="stylesheet" href="../web/styles.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.1.0/paho-mqtt.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Controlador ESP32/8266 via MQTT</h1>
+            <p class="subtitle">Monitoreo y control en tiempo "real"</p>
+        </header>
+        <!--Esta parte es para saber el estado de la conexión MQTT-->
+        <div class="connection-status">
+            <div class="status-indicator disconnected" id="status-indicator"></div>
+            <span id="status-text">Desconectado</span>
+        </div>
+        <!--Esta parte es para la configuración del cliente MQTT-->
+        <div class="config-panel">
+            <h2>Configuración MQTT</h2>
+            <div class="form-group">
+                <label for="broker-host">Broker MQTT:</label>
+                <input type="text" id="broker-host" value="broker.hivemq.com" placeholder="mqtt://broker.url.com">
+            </div>
+            <div class="form-group">
+                <label for="broker-port">Puerto:</label>
+                <input type="number" id="broker-port" value="8884" placeholder="8884">
+            </div>
+            <div class="form-group">
+                <label for="client-id">Client ID:</label>
+                <input type="text" id="client-id" value="web-client-" placeholder="ID único del cliente">
+            </div>
+            <button class="btn btn-primary" id="connect-btn">Conectar</button>
+            <button class="btn btn-danger" id="disconnect-btn">Desconectar</button>
+        </div>
+        <!-- Esta parte es para ver la temperatura y humedad del dht11/22
+        ademas tiene un histograma -->
+        <div class="dashboard">
+            <div class="card">
+                <h2 class="card-title">
+                    <i>📊</i> Datos del Sensor
+                </h2>
+                <div class="data-display">
+                    <div class="data-item">
+                        <div class="data-value" id="temperature">--</div>
+                        <div class="data-label">Temperatura °C</div>
+                    </div>
+                    <div class="data-item">
+                        <div class="data-value" id="humidity">--</div>
+                        <div class="data-label">Humedad %</div>
+                    </div>
+                </div>
+            <!--hay que mejorar esto-->
+                <h3>Historial de Temperatura</h3>
+                <div class="chart-container">
+                    <canvas id="temperature-chart"></canvas>
+                </div>
+            </div>
+        <!--Esta parte esta hecha para el envio de mensajes por MQTT al esp32-->
+            <div class="card">
+                <h2 class="card-title">
+                    <i>⚙️</i> Controles
+                </h2>
+                <p>Gestiona los dispositivos conectados al ESP32</p>
+    
+                <div class="controls">
+                    <button class="btn btn-success" id="led-on">Encender Luz</button>
+                    <button class="btn btn-danger" id="led-off">Apagar Luz</button>
+                    <button class="btn btn-primary" id="alarma-conf">Configurar Alarma</button>
+                    <button class="btn btn-success" id="alarma-on">Encender Alarma</button>
+                    <button class="btn btn-danger" id="alarma-off">Desactivar Alarma</button>
+                </div>
+    
+                <h3>Mensajes Recibidos</h3>
+                <div id="message-log"
+                    style="height: 200px; overflow-y: auto; margin-top: 1rem; padding: 10px; background-color: var(--light); border-radius: 8px;">
+                    <p>Esperando mensajes...</p>
+                </div>
+            </div>
+        </div>
+    
+        <footer>
+            <p>Prototipo de Aplicación Web para control de ESP32/8266 via MQTT</p>
+        </footer>
+    </div>
+    <script src="../web/script.js"></script>
+</body>
+</html>
