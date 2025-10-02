@@ -161,7 +161,7 @@ function updateConnectionStatus(connected) {
 
 // Añadir mensaje al log
 function addMessageToLog(message) {
-  const now = new Date();
+  const now = new Date();//Esto se deberuia cambiar por la hora del RTC del esp32
   const timeString = now.toLocaleTimeString();
   const messageElement = document.createElement("p");
   messageElement.textContent = `[${timeString}] ${message}`;
