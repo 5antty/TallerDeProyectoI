@@ -39,33 +39,23 @@ int sendData(const char *logName, const char *data)
     return txBytes;
 }
 
-static void tx_task(void *arg)
-{
-    static const char *TX_TASK_TAG = "TX_TASK";
-    esp_log_level_set(TX_TASK_TAG, ESP_LOG_INFO);
-    while (1)
-    {
-        // sendData(TX_TASK_TAG, "Hello world");
-        vTaskDelay(2000 / portTICK_PERIOD_MS);
-    }
-}
-
 static void rx_task(void *arg)
 {
     static const char *RX_TASK_TAG = "RX_TASK";
     esp_log_level_set(RX_TASK_TAG, ESP_LOG_INFO);
-    uint8_t *data = (uint8_t *)malloc(RX_BUF_SIZE + 1);
+    BUFFER_RX = (uint8_t *)malloc(RX_BUF_SIZE + 1);
     while (1)
     {
-        const int rxBytes = uart_read_bytes(UART_NUM_0, data, RX_BUF_SIZE, 1000 / portTICK_PERIOD_MS);
+        // Recibe cada 5 segundos porque la educia manda datos por UART cada 5
+        const int rxBytes = uart_read_bytes(UART_NUM_0, BUFFER_RX, RX_BUF_SIZE, 5000 / portTICK_PERIOD_MS);
         if (rxBytes > 0)
         {
-            data[rxBytes] = 0;
-            ESP_LOGI(RX_TASK_TAG, "Read %d bytes: '%s'", rxBytes, data);
-            ESP_LOG_BUFFER_HEXDUMP(RX_TASK_TAG, data, rxBytes, ESP_LOG_INFO);
+            BUFFER_RX[rxBytes] = 0;
+            ESP_LOGI(RX_TASK_TAG, "Read %d bytes: '%s'", rxBytes, BUFFER_RX);
+            ESP_LOG_BUFFER_HEXDUMP(RX_TASK_TAG, BUFFER_RX, rxBytes, ESP_LOG_INFO);
         }
     }
-    free(data);
+    free(BUFFER_RX);
 }
 
 void uart_init(void)

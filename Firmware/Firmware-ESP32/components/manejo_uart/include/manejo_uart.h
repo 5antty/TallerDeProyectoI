@@ -11,6 +11,8 @@
 #include "string.h"
 #include "driver/gpio.h"
 
+uint8_t *BUFFER_RX;
+
 void uart_init(void);
 int sendData(const char *logName, const char *data);
 

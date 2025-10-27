@@ -22,8 +22,8 @@
 
 #include "mqtt_client.h"
 esp_mqtt_client_handle_t mqttClient;
-#define MQTT_BROKER_URI "mqtts://76399ac7f3634d13b35a1d58e1796d19.s1.eu.hivemq.cloud:8883"
-#define MQTT_PORT 8883
+#define MQTT_BROKER_URI "mqtt://broker.emqx.io"
+#define MQTT_PORT 1883
 
 /* The examples use WiFi configuration that you can set via project configuration menu
 
@@ -48,6 +48,7 @@ static const char *TAG_MQTT = "mqtt";
 
 static int s_retry_num = 0;
 static int isConnected = 0;
+extern uint8_t *BUFFER_RX;
 
 static void wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data)
 {
@@ -91,16 +92,16 @@ void wifi_init_sta(void)
 
     // Inicializacion de la interfaz de red tcp/ip
     ESP_ERROR_CHECK(esp_netif_init());
-    esp_netif_create_default_wifi_sta();
-
     ESP_ERROR_CHECK(esp_event_loop_create_default());
-
-    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-    ESP_ERROR_CHECK(esp_wifi_init(&cfg));
 
     // Registro de los manejadores de eventos
     ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &wifi_event_handler, NULL, NULL));
     ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &wifi_event_handler, NULL, NULL));
+
+    esp_netif_create_default_wifi_sta();
+
+    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+    ESP_ERROR_CHECK(esp_wifi_init(&cfg));
 
     wifi_config_t wifi_config = {
         .sta = {
@@ -112,31 +113,6 @@ void wifi_init_sta(void)
     ESP_ERROR_CHECK(esp_wifi_start());
 
     ESP_LOGI(TAG_WIFI, "Inicializacion del WiFi STA terminado.");
-
-    /* Waiting until either the connection is established (WIFI_CONNECTED_BIT) or connection failed for the maximum
-     * number of re-tries (WIFI_FAIL_BIT). The bits are set by event_handler() (see above) */
-    EventBits_t bits = xEventGroupWaitBits(wifi_event_group,
-                                           WIFI_CONNECTED_BIT | WIFI_FAIL_BIT,
-                                           pdFALSE,
-                                           pdFALSE,
-                                           portMAX_DELAY);
-
-    /* xEventGroupWaitBits() returns the bits before the call returned, hence we can test which event actually
-     * happened. */
-    if (bits & WIFI_CONNECTED_BIT)
-    {
-        ESP_LOGI(TAG_WIFI, "connected to ap SSID:%s password:%s",
-                 WIFI_SSID, WIFI_PASS);
-    }
-    else if (bits & WIFI_FAIL_BIT)
-    {
-        ESP_LOGI(TAG_WIFI, "Failed to connect to SSID:%s, password:%s",
-                 WIFI_SSID, WIFI_PASS);
-    }
-    else
-    {
-        ESP_LOGE(TAG_WIFI, "UNEXPECTED EVENT");
-    }
 }
 
 void mqtt_publish_task(void *pvParameters)
@@ -144,16 +120,17 @@ void mqtt_publish_task(void *pvParameters)
     char datatoSend[20];
     while (1)
     {
-        int val = esp_random() % 100;
-        // Valor obtenido por serie
-
-        sprintf(datatoSend, "%d", val);
-        int msg_id = esp_mqtt_client_publish(mqttClient, "esp32/temperatura", datatoSend, 0, 0, 0);
+        // int val = esp_random() % 100;
+        //  Valor obtenido por serie
+        /////REVER ESTO
+        uint8_t *val = BUFFER_RX;
+        // sprintf(datatoSend, "%d", val);
+        int msg_id = esp_mqtt_client_publish(mqttClient, "esp32/temperatura", (const char *)val, 0, 0, 0);
         if (msg_id == 0)
             ESP_LOGI(TAG_MQTT, "Sent Data: %d", val);
         else
             ESP_LOGI(TAG_MQTT, "Error msg_id:%d while sending data", msg_id);
-        vTaskDelay(10000 / portTICK_PERIOD_MS);
+        vTaskDelay(6000 / portTICK_PERIOD_MS);
         // vTaskDelay(pdMS_TO_TICKS(2000));
     }
 }
@@ -168,11 +145,11 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
     {
     case MQTT_EVENT_CONNECTED:
         ESP_LOGI(TAG_MQTT, "MQTT_EVENT_CONNECTED");
-        xTaskCreate(mqtt_publish_task, "mqtt_publish_task", 2048, NULL, 5, NULL);
+        // xTaskCreate(mqtt_publish_task, "mqtt_publish_task", 2048, NULL, 5, NULL);
 
         msg_id = esp_mqtt_client_subscribe(client, "esp32/alarma", 0);
         ESP_LOGI(TAG_MQTT, "sent subscribe successful, msg_id=%d", msg_id);
-        msg_id = esp_mqtt_client_subscribe(client, "esp32/temperatura", 0);
+        msg_id = esp_mqtt_client_subscribe(client, "esp32/temp_change", 0);
         ESP_LOGI(TAG_MQTT, "sent subscribe successful, msg_id=%d", msg_id);
         msg_id = esp_mqtt_client_subscribe(client, "esp32/luz", 0);
         ESP_LOGI(TAG_MQTT, "sent subscribe successful, msg_id=%d", msg_id);
@@ -199,6 +176,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
         ESP_LOGI(TAG_MQTT, "MQTT_EVENT_DATA");
         printf("TOPIC=%.*s\r\n", event->topic_len, event->topic);
         printf("DATA=%.*s\r\n", event->data_len, event->data);
+        sendData("MQTT_EVENT_DATA", event->data);
         break;
 
     case MQTT_EVENT_ERROR:
@@ -244,21 +222,52 @@ static void mqtt_start(void)
 void app_main(void)
 {
     // Inicializacion de memoria no volatil
-    esp_err_t ret = nvs_flash_init();
+    /* esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND)
     {
         ESP_ERROR_CHECK(nvs_flash_erase());
         ret = nvs_flash_init();
     }
-    ESP_ERROR_CHECK(ret);
+    ESP_ERROR_CHECK(ret); */
+    ESP_ERROR_CHECK(nvs_flash_init());
 
     ESP_LOGI(TAG_WIFI, "ESP_WIFI_MODE_STA");
     wifi_init_sta();
 
+    /* Waiting until either the connection is established (WIFI_CONNECTED_BIT) or connection failed for the maximum
+     * number of re-tries (WIFI_FAIL_BIT). The bits are set by event_handler() (see above) */
+    EventBits_t bits = xEventGroupWaitBits(wifi_event_group,
+                                           WIFI_CONNECTED_BIT | WIFI_FAIL_BIT,
+                                           pdFALSE,
+                                           pdFALSE,
+                                           portMAX_DELAY);
+
+    /* xEventGroupWaitBits() returns the bits before the call returned, hence we can test which event actually
+     * happened. */
+    ESP_LOGI(TAG_WIFI, "Wi-Fi connection established. Starting MQTT client.");
+
+    /* if (bits & WIFI_CONNECTED_BIT)
+    {
+        ESP_LOGI(TAG_WIFI, "connected to ap SSID:%s password:%s",
+                 WIFI_SSID, WIFI_PASS);
+    }
+    else if (bits & WIFI_FAIL_BIT)
+    {
+        ESP_LOGI(TAG_WIFI, "Failed to connect to SSID:%s, password:%s",
+                 WIFI_SSID, WIFI_PASS);
+    }
+    else
+    {
+        ESP_LOGE(TAG_WIFI, "UNEXPECTED EVENT");
+    } */
+
     if (isConnected)
         mqtt_start();
+    uart_init();
+    /*
     while (1)
     {
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
+        */
 }
