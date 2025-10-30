@@ -48,7 +48,9 @@ static const char *TAG_MQTT = "mqtt";
 
 static int s_retry_num = 0;
 static int isConnected = 0;
-extern uint8_t *BUFFER_RX;
+
+extern uint8_t uart_buffer[RX_BUF_SIZE];
+extern uint8_t uart_data_ready;
 
 static void wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data)
 {
@@ -113,19 +115,47 @@ void wifi_init_sta(void)
     ESP_ERROR_CHECK(esp_wifi_start());
 
     ESP_LOGI(TAG_WIFI, "Inicializacion del WiFi STA terminado.");
+
+    /* Waiting until either the connection is established (WIFI_CONNECTED_BIT) or connection failed for the maximum
+     * number of re-tries (WIFI_FAIL_BIT). The bits are set by event_handler() (see above) */
+    EventBits_t bits = xEventGroupWaitBits(wifi_event_group,
+                                           WIFI_CONNECTED_BIT | WIFI_FAIL_BIT,
+                                           pdFALSE,
+                                           pdFALSE,
+                                           portMAX_DELAY);
+
+    /* xEventGroupWaitBits() returns the bits before the call returned, hence we can test which event actually
+     * happened. */
+    ESP_LOGI(TAG_WIFI, "Conexion Wi-Fi establecida. Lanzando el cliente MQTT.");
+
+    if (bits & WIFI_CONNECTED_BIT)
+    {
+        ESP_LOGI(TAG_WIFI, "Conectado al AP SSID:%s password:%s",
+                 WIFI_SSID, WIFI_PASS);
+    }
+    else if (bits & WIFI_FAIL_BIT)
+    {
+        ESP_LOGI(TAG_WIFI, "No se pudo conectar al AP SSID:%s, password:%s",
+                 WIFI_SSID, WIFI_PASS);
+    }
+    else
+    {
+        ESP_LOGE(TAG_WIFI, "Evento INESPERADO");
+    }
 }
 
+// ESTO NO DEBERIA ESTAR, SERIA MEJOR SOLO ENVIAR CUANDO RECIBO ALGO POR UART
 void mqtt_publish_task(void *pvParameters)
 {
     char datatoSend[20];
     while (1)
     {
-        // int val = esp_random() % 100;
+        int val = esp_random() % 100;
         //  Valor obtenido por serie
-        /////REVER ESTO
-        uint8_t *val = BUFFER_RX;
-        // sprintf(datatoSend, "%d", val);
-        int msg_id = esp_mqtt_client_publish(mqttClient, "esp32/temperatura", (const char *)val, 0, 0, 0);
+        // REVER ESTO
+        sprintf(datatoSend, "%d", val);
+        // OSEA HACER ESTO EN EL RECEIVE DE UART
+        int msg_id = esp_mqtt_client_publish(mqttClient, "smarthome/web/temperatura", datatoSend, 0, 0, 0);
         if (msg_id == 0)
             ESP_LOGI(TAG_MQTT, "Sent Data: %d", val);
         else
@@ -134,6 +164,13 @@ void mqtt_publish_task(void *pvParameters)
         // vTaskDelay(pdMS_TO_TICKS(2000));
     }
 }
+
+static char *topics[] = {
+    "smarthome/esp32/luz1",
+    "smarthome/esp32/luz2",
+    "smarthome/esp32/caloventor",
+    "smarthome/esp32/ventilador",
+    "smarthome/esp32/alarma"};
 
 static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data)
 {
@@ -144,43 +181,38 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
     switch ((esp_mqtt_event_id_t)event_id)
     {
     case MQTT_EVENT_CONNECTED:
-        ESP_LOGI(TAG_MQTT, "MQTT_EVENT_CONNECTED");
+        ESP_LOGI(TAG_MQTT, "Se estableció conexión con el broker MQTT => %s", MQTT_BROKER_URI);
         // xTaskCreate(mqtt_publish_task, "mqtt_publish_task", 2048, NULL, 5, NULL);
-
-        msg_id = esp_mqtt_client_subscribe(client, "esp32/alarma", 0);
-        ESP_LOGI(TAG_MQTT, "sent subscribe successful, msg_id=%d", msg_id);
-        msg_id = esp_mqtt_client_subscribe(client, "esp32/temp_change", 0);
-        ESP_LOGI(TAG_MQTT, "sent subscribe successful, msg_id=%d", msg_id);
-        msg_id = esp_mqtt_client_subscribe(client, "esp32/luz", 0);
-        ESP_LOGI(TAG_MQTT, "sent subscribe successful, msg_id=%d", msg_id);
-
+        for (int i = 0; i < sizeof(topics) / sizeof(topics[0]); i++)
+        {
+            esp_mqtt_client_subscribe(client, topics[i], 0);
+        }
         break;
 
     case MQTT_EVENT_DISCONNECTED:
-        ESP_LOGI(TAG_MQTT, "MQTT_EVENT_DISCONNECTED");
+        ESP_LOGI(TAG_MQTT, "Se DESCONECTÓ del broker MQTT => %s", MQTT_BROKER_URI);
         break;
 
     case MQTT_EVENT_SUBSCRIBED:
-        ESP_LOGI(TAG_MQTT, "MQTT_EVENT_SUBSCRIBED, msg_id=%d, return code=0x%02x ", event->msg_id, (uint8_t)*event->data);
+        // ESP_LOGI(TAG_MQTT, "MQTT_EVENT_SUBSCRIBED, msg_id=%d, return code=0x%02x ", event->msg_id, (uint8_t)*event->data);
+        ESP_LOGI(TAG_MQTT, "Se SUSCRIBIÓ correctamente al topic => %.*s", event->topic_len, event->topic);
         break;
 
     case MQTT_EVENT_UNSUBSCRIBED:
-        ESP_LOGI(TAG_MQTT, "MQTT_EVENT_UNSUBSCRIBED, msg_id=%d", event->msg_id);
+        ESP_LOGI(TAG_MQTT, "Se DESUSCRIBIÓ correctamente del topic => %.*s", event->topic_len, event->topic);
         break;
 
     case MQTT_EVENT_PUBLISHED:
-        ESP_LOGI(TAG_MQTT, "MQTT_EVENT_PUBLISHED, msg_id=%d", event->msg_id);
+        ESP_LOGI(TAG_MQTT, "Se PUBLICÓ correctamente en el topic => %.*s, el mensaje => %.*s", event->topic_len, event->topic, event->data_len, event->data);
         break;
 
     case MQTT_EVENT_DATA: // Me devuelve el mensaje que mando el broker
-        ESP_LOGI(TAG_MQTT, "MQTT_EVENT_DATA");
-        printf("TOPIC=%.*s\r\n", event->topic_len, event->topic);
-        printf("DATA=%.*s\r\n", event->data_len, event->data);
-        sendData("MQTT_EVENT_DATA", event->data);
+        ESP_LOGI(TAG_MQTT, "Se RECIBIÓ un mensaje del broker MQTT: %.*s, del topic => %.*s", event->data_len, event->data, event->topic_len, event->topic);
+        // sendData(event->data);
         break;
 
     case MQTT_EVENT_ERROR:
-        ESP_LOGI(TAG_MQTT, "MQTT_EVENT_ERROR");
+        ESP_LOGI(TAG_MQTT, "ERROR DE EVENTO MQTT");
         if (event->error_handle->error_type == MQTT_ERROR_TYPE_TCP_TRANSPORT)
         {
             ESP_LOGI(TAG_MQTT, "Last error code reported from esp-tls: 0x%x", event->error_handle->esp_tls_last_esp_err);
@@ -222,52 +254,34 @@ static void mqtt_start(void)
 void app_main(void)
 {
     // Inicializacion de memoria no volatil
-    /* esp_err_t ret = nvs_flash_init();
+    esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND)
     {
         ESP_ERROR_CHECK(nvs_flash_erase());
         ret = nvs_flash_init();
     }
-    ESP_ERROR_CHECK(ret); */
-    ESP_ERROR_CHECK(nvs_flash_init());
+    ESP_ERROR_CHECK(ret);
+    // ESP_ERROR_CHECK(nvs_flash_init());
 
-    ESP_LOGI(TAG_WIFI, "ESP_WIFI_MODE_STA");
+    ESP_LOGI(TAG_WIFI, "Iniciando conexion a WIFI...");
     wifi_init_sta();
-
-    /* Waiting until either the connection is established (WIFI_CONNECTED_BIT) or connection failed for the maximum
-     * number of re-tries (WIFI_FAIL_BIT). The bits are set by event_handler() (see above) */
-    EventBits_t bits = xEventGroupWaitBits(wifi_event_group,
-                                           WIFI_CONNECTED_BIT | WIFI_FAIL_BIT,
-                                           pdFALSE,
-                                           pdFALSE,
-                                           portMAX_DELAY);
-
-    /* xEventGroupWaitBits() returns the bits before the call returned, hence we can test which event actually
-     * happened. */
-    ESP_LOGI(TAG_WIFI, "Wi-Fi connection established. Starting MQTT client.");
-
-    /* if (bits & WIFI_CONNECTED_BIT)
-    {
-        ESP_LOGI(TAG_WIFI, "connected to ap SSID:%s password:%s",
-                 WIFI_SSID, WIFI_PASS);
-    }
-    else if (bits & WIFI_FAIL_BIT)
-    {
-        ESP_LOGI(TAG_WIFI, "Failed to connect to SSID:%s, password:%s",
-                 WIFI_SSID, WIFI_PASS);
-    }
-    else
-    {
-        ESP_LOGE(TAG_WIFI, "UNEXPECTED EVENT");
-    } */
-
     if (isConnected)
         mqtt_start();
-    uart_init();
-    /*
+
+    /* uart_init();
     while (1)
     {
+        if (uart_data_ready)
+        {
+            // Por ejemplo, enviar por MQTT
+            printf("Recibido por UART: %s\n", uart_buffer);
+
+            // Publicar por MQTT si ya está inicializado
+            // esp_mqtt_client_publish(mqttClient, "esp32/entrada_uart", (const char *)uart_buffer, 0, 0, 0);
+
+            uart_data_ready = 0; // Limpiamos el flag
+        }
+
         vTaskDelay(pdMS_TO_TICKS(1000));
-    }
-        */
+    } */
 }

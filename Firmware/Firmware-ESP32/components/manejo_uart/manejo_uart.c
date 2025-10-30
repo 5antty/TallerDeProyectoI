@@ -8,14 +8,61 @@
    CONDITIONS OF ANY KIND, either express or implied.
 */
 #include "manejo_uart.h"
-static const int RX_BUF_SIZE = 1024;
+#include "string.h"
 
 // UART 0
 #define TXD_PIN (GPIO_NUM_1)
 #define RXD_PIN (GPIO_NUM_3)
 #define BAUD_RATE (115200)
 
-void init(void)
+// Buffer global y flag
+uint8_t uart_buffer[RX_BUF_SIZE];
+uint8_t uart_data_ready = 0;
+
+int sendData(const char *data)
+{
+    static const char *TX_TASK_TAG = "TX_TASK";
+    const int len = strlen(data);
+    const int txBytes = uart_write_bytes(UART_NUM, data, len);
+    ESP_LOGI(TX_TASK_TAG, "Wrote %d bytes", txBytes);
+    return txBytes;
+}
+
+static void tx_task(void *arg)
+{
+    static const char *TX_TASK_TAG = "TX_TASK";
+    esp_log_level_set(TX_TASK_TAG, ESP_LOG_INFO);
+    while (1)
+    {
+        sendData("Hello world");
+        vTaskDelay(2000 / portTICK_PERIOD_MS);
+    }
+}
+
+static void rx_task(void *arg)
+{
+    static const char *RX_TASK_TAG = "RX_TASK";
+    esp_log_level_set(RX_TASK_TAG, ESP_LOG_INFO);
+    uint8_t *data = (uint8_t *)malloc(RX_BUF_SIZE + 1);
+    while (1)
+    {
+        // Recibe cada 5 segundos porque la educia manda datos por UART cada 5
+        const int rxBytes = uart_read_bytes(UART_NUM, data, RX_BUF_SIZE, 5000 / portTICK_PERIOD_MS);
+        if (rxBytes > 0)
+        {
+            data[rxBytes] = '\0';
+            // Copiamos los datos al buffer global
+            memcpy(uart_buffer, data, rxBytes + 1);
+            uart_data_ready = 1;
+
+            ESP_LOGI(RX_TASK_TAG, "Read %d bytes: '%s'", rxBytes, data);
+            ESP_LOG_BUFFER_HEXDUMP(RX_TASK_TAG, data, rxBytes, ESP_LOG_INFO);
+        }
+    }
+    free(data);
+}
+
+void uart_init(void)
 {
     const uart_config_t uart_config = {
         .baud_rate = BAUD_RATE,
@@ -26,41 +73,9 @@ void init(void)
         .source_clk = UART_SCLK_DEFAULT,
     };
     // We won't use a buffer for sending data.
-    uart_driver_install(UART_NUM_0, RX_BUF_SIZE * 2, 0, 0, NULL, 0);
-    uart_param_config(UART_NUM_0, &uart_config);
-    uart_set_pin(UART_NUM_0, TXD_PIN, RXD_PIN, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
-}
+    uart_driver_install(UART_NUM, RX_BUF_SIZE * 2, 0, 0, NULL, 0);
+    uart_param_config(UART_NUM, &uart_config);
+    uart_set_pin(UART_NUM, TXD_PIN, RXD_PIN, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
 
-int sendData(const char *logName, const char *data)
-{
-    const int len = strlen(data);
-    const int txBytes = uart_write_bytes(UART_NUM_0, data, len);
-    ESP_LOGI(logName, "Wrote %d bytes", txBytes);
-    return txBytes;
-}
-
-static void rx_task(void *arg)
-{
-    static const char *RX_TASK_TAG = "RX_TASK";
-    esp_log_level_set(RX_TASK_TAG, ESP_LOG_INFO);
-    BUFFER_RX = (uint8_t *)malloc(RX_BUF_SIZE + 1);
-    while (1)
-    {
-        // Recibe cada 5 segundos porque la educia manda datos por UART cada 5
-        const int rxBytes = uart_read_bytes(UART_NUM_0, BUFFER_RX, RX_BUF_SIZE, 5000 / portTICK_PERIOD_MS);
-        if (rxBytes > 0)
-        {
-            BUFFER_RX[rxBytes] = 0;
-            ESP_LOGI(RX_TASK_TAG, "Read %d bytes: '%s'", rxBytes, BUFFER_RX);
-            ESP_LOG_BUFFER_HEXDUMP(RX_TASK_TAG, BUFFER_RX, rxBytes, ESP_LOG_INFO);
-        }
-    }
-    free(BUFFER_RX);
-}
-
-void uart_init(void)
-{
-    init();
-    xTaskCreate(rx_task, "uart_rx_task", 1024 * 2, NULL, configMAX_PRIORITIES, NULL);
-    // xTaskCreate(tx_task, "uart_tx_task", 1024 * 2, NULL, configMAX_PRIORITIES - 1, NULL);
+    xTaskCreate(rx_task, "uart_rx_task", 1024 * 2, NULL, 5, NULL);
 }

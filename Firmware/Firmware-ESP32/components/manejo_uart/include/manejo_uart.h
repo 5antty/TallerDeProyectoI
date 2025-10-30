@@ -8,12 +8,16 @@
 #include "esp_system.h"
 #include "esp_log.h"
 #include "driver/uart.h"
-#include "string.h"
 #include "driver/gpio.h"
 
-uint8_t *BUFFER_RX;
+#define RX_BUF_SIZE 1024
+#define UART_NUM UART_NUM_1
+
+// Variables globales accesibles desde main.c
+extern uint8_t uart_buffer[RX_BUF_SIZE];
+extern uint8_t uart_data_ready;
 
 void uart_init(void);
-int sendData(const char *logName, const char *data);
+int sendData(const char *data);
 
 #endif
