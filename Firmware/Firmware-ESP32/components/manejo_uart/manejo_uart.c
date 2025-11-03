@@ -9,14 +9,15 @@
 */
 #include "manejo_uart.h"
 #include "string.h"
+const char *TAG_UART = "uart";
 
 // UART 0
-#define TXD_PIN (GPIO_NUM_1)
-#define RXD_PIN (GPIO_NUM_3)
+#define TXD_PIN (GPIO_NUM_17)
+#define RXD_PIN (GPIO_NUM_16)
 #define BAUD_RATE (115200)
 
 // Buffer global y flag
-uint8_t uart_buffer[RX_BUF_SIZE];
+char uart_buffer[RX_BUF_SIZE];
 uint8_t uart_data_ready = 0;
 
 int sendData(const char *data)
@@ -28,18 +29,7 @@ int sendData(const char *data)
     return txBytes;
 }
 
-static void tx_task(void *arg)
-{
-    static const char *TX_TASK_TAG = "TX_TASK";
-    esp_log_level_set(TX_TASK_TAG, ESP_LOG_INFO);
-    while (1)
-    {
-        sendData("Hello world");
-        vTaskDelay(2000 / portTICK_PERIOD_MS);
-    }
-}
-
-static void rx_task(void *arg)
+void rx_task(void *arg)
 {
     static const char *RX_TASK_TAG = "RX_TASK";
     esp_log_level_set(RX_TASK_TAG, ESP_LOG_INFO);
@@ -47,7 +37,7 @@ static void rx_task(void *arg)
     while (1)
     {
         // Recibe cada 5 segundos porque la educia manda datos por UART cada 5
-        const int rxBytes = uart_read_bytes(UART_NUM, data, RX_BUF_SIZE, 5000 / portTICK_PERIOD_MS);
+        const int rxBytes = uart_read_bytes(UART_NUM, data, RX_BUF_SIZE, 1000 / portTICK_PERIOD_MS);
         if (rxBytes > 0)
         {
             data[rxBytes] = '\0';
