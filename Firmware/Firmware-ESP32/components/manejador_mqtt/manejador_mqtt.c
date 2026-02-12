@@ -1,13 +1,15 @@
 #include "manejador_mqtt.h"
 
 esp_mqtt_client_handle_t mqttClient;
-#define MQTT_BROKER_URI "mqtt://broker.emqx.io"
+#define MQTT_BROKER_URI "mqtt://broker.emqx.io" // cambiar por la ip del broker
 #define MQTT_PORT 1883
 static const char *TAG_MQTT = "mqtt";
 
 static char *topics[] = {
     "smarthome/esp32/luz1",
     "smarthome/esp32/luz2",
+    "smarthome/esp32/slide1",
+    "smarthome/esp32/slide2",
     "smarthome/esp32/caloventor",
     "smarthome/esp32/ventilador",
     "smarthome/esp32/alarma"};

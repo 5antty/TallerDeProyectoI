@@ -28,7 +28,13 @@ static char *topicsWeb[] = {
     "smarthome/web/luz2",
     "smarthome/web/caloventor",
     "smarthome/web/ventilador",
-    "smarthome/web/alarma"};
+    "smarthome/web/alarma",
+    "smarthome/web/slide1",
+    "smarthome/web/slide2",
+    "smarthome/web/temp",
+    "smarthome/web/hum",
+};
+// Falta onfigurar topics para slide, temp y hum
 
 void app_main(void)
 {
@@ -92,7 +98,7 @@ void app_main(void)
                 }
                 break;
             case 'C':
-                /*Publicacion de mensajes en el broker sobre la luz 1*/
+                /*Publicacion de mensajes en el broker sobre el caloventor*/
                 if (strcmp((char *)uart_buffer, "CON") == 0)
                 {
                     esp_mqtt_client_publish(mqttClient, topicsWeb[2], "ON", 0, 0, 0);
@@ -103,7 +109,7 @@ void app_main(void)
                 }
                 break;
             case 'V':
-                /*Publicacion de mensajes en el broker sobre la luz 1*/
+                /*Publicacion de mensajes en el broker sobre el ventilador*/
                 if (strcmp((char *)uart_buffer, "VON") == 0)
                 {
                     esp_mqtt_client_publish(mqttClient, topicsWeb[3], "ON", 0, 0, 0);
