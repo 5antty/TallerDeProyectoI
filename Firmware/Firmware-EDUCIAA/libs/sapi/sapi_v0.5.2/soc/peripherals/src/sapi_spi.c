@@ -56,31 +56,47 @@
 
 /*==================[external functions definition]==========================*/
 
+// =================================================================
+// CÓDIGO DE REEMPLAZO DENTRO DE sapi_spi.c
+// =================================================================
+
 bool_t spiInit( spiMap_t spi )
 {
+    bool_t retVal = TRUE;
 
-   bool_t retVal = TRUE;
+    if( spi == SPI0 ) {
 
-   if( spi == SPI0 ) {
+        /* Set up clock and power for SSP1 module */
+        // Configure SSP SSP1 pins
+        Chip_SCU_PinMuxSet(0xf, 4, (SCU_MODE_PULLUP | SCU_MODE_FUNC0)); // CLK0
+        Chip_SCU_PinMuxSet(0x1, 3, (SCU_MODE_PULLUP | SCU_MODE_INBUFF_EN | SCU_MODE_ZIF_DIS | SCU_MODE_FUNC5)); // MISO1
+        Chip_SCU_PinMuxSet(0x1, 4, (SCU_MODE_PULLUP | SCU_MODE_FUNC5)); // MOSI1
 
-      /* Set up clock and power for SSP1 module */
-      // Configure SSP SSP1 pins
-      Chip_SCU_PinMuxSet(0xf, 4, (SCU_MODE_PULLUP | SCU_MODE_FUNC0)); // CLK0
-      Chip_SCU_PinMuxSet(0x1, 3, (SCU_MODE_PULLUP | SCU_MODE_INBUFF_EN | SCU_MODE_ZIF_DIS | SCU_MODE_FUNC5)); // MISO1
-      Chip_SCU_PinMuxSet(0x1, 4, (SCU_MODE_PULLUP | SCU_MODE_FUNC5)); // MOSI1
+        Chip_SCU_PinMuxSet(0x6, 1, (SCU_MODE_PULLUP | SCU_MODE_FUNC0)); // CS1 configured as GPIO
+        Chip_GPIO_SetPinDIROutput(LPC_GPIO_PORT, 3, 0);
 
-      Chip_SCU_PinMuxSet(0x6, 1, (SCU_MODE_PULLUP | SCU_MODE_FUNC0)); // CS1 configured as GPIO
-      Chip_GPIO_SetPinDIROutput(LPC_GPIO_PORT, 3, 0);
+        // Initialize SSP Peripheral
+        Chip_SSP_Init( LPC_SSP1 );
 
-      // Initialize SSP Peripheral
-      Chip_SSP_Init( LPC_SSP1 );
-      Chip_SSP_Enable( LPC_SSP1 );
+        // *************** CÓDIGO AÑADIDO PARA LA ESTABILIDAD ***************
+        // Establecer el modo Master y la tasa de reloj (frecuencia)
 
-   } else {
-      retVal = FALSE;
-   }
+        // 1. Configurar el formato: 8 bits, Modo SPI, Polarity=0, Phase=0 (Modo 0)
+        Chip_SSP_SetFormat( LPC_SSP1, SSP_BITS_8, SSP_FRAMEFORMAT_SPI, SSP_CLOCK_CPHA0_CPOL0 );
 
-   return retVal;
+        // 2. Configurar la tasa de reloj (Ejemplo: ~10 MHz, un valor seguro para ILI9341)
+        // La velocidad real depende del reloj periférico (PCLK), pero esto establece un divisor.
+        // Usar un valor bajo de divisor (~10 MHz) para garantizar la estabilidad.
+      Chip_SSP_SetClockRate( LPC_SSP1, 5000000, 2); 
+        // ******************************************************************
+
+        Chip_SSP_Enable( LPC_SSP1 );
+
+    } else {
+        retVal = FALSE;
+    }
+
+    return retVal;
 }
 
 

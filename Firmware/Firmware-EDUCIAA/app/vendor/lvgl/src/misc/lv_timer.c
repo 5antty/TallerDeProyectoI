@@ -5,6 +5,7 @@
 /*********************
  *      INCLUDES
  *********************/
+
 #include "lv_timer.h"
 #include "../hal/lv_hal_tick.h"
 #include "lv_assert.h"
@@ -67,6 +68,7 @@ void _lv_timer_core_init(void)
 uint32_t LV_ATTRIBUTE_TIMER_HANDLER lv_timer_handler(void)
 {
     TIMER_TRACE("begin");
+    
 
     /*Avoid concurrent running of the timer handler*/
     static bool already_running = false;
@@ -94,6 +96,7 @@ uint32_t LV_ATTRIBUTE_TIMER_HANDLER lv_timer_handler(void)
             LV_LOG_WARN("It seems lv_tick_inc() is not called.");
         }
     }
+     
 
     /*Run all timer from the list*/
     lv_timer_t * next;
@@ -143,6 +146,7 @@ uint32_t LV_ATTRIBUTE_TIMER_HANDLER lv_timer_handler(void)
 
     TIMER_TRACE("finished (%d ms until the next timer call)", time_till_next);
     return time_till_next;
+     
 }
 
 /**

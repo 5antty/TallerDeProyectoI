@@ -5,18 +5,32 @@
 static alarma_estado_t estado;
 static uint32_t t_sistema;
 static uint32_t t_estado;           // tiempo estado
-static uint32_t t_gracia;         // timestamp fin armado (ARMING)-> t_estado + ARM_DELAY_GRACIA_MS. Tiempo que doy a la persona para que pueda salir de la casa
+static uint32_t t_gracia;         // tiempo fin armado (ARMING)-> t_estado + ARM_DELAY_GRACIA_MS. Tiempo que doy a la persona para que pueda salir de la casa
 static uint32_t t_fin_gracia;       // fin de ventana de gracia
 static int intentos_clave;
 
-static char pin_guardado[PIN_MAX_LONGITUD + 1] = "1234"; // PIN por defecto (editable)
+static char pin_guardado[PIN_MAX_LONGITUD + 1] = "2222"; // PIN por defecto (editable)
 static char pin_buffer[PIN_MAX_LONGITUD + 1];
 static uint8_t pin_idx;
 static bool entrada_pin_activo;    //Estoy metiendo una clave si esta true
 static uint32_t entrada_pin_expiro;
 static code_action_t pin_funcion;    // si el buffer es para armar o desarmar
 
+static bool_t sensor_pir_activo = FALSE;
+static bool_t  sensor_magnetico_activo = FALSE;
 static uint8_t sensores_activados = SENSOR_AMBOS; // default
+
+static const char* estado_a_string(alarma_estado_t est) {
+    switch (est) {
+        case ALM_DESARMADO:      return "ALM_DESARMADO";
+        case ALM_ARMANDO:        return "ALM_ARMANDO";
+        case ALM_ARMADO:         return "ALM_ARMADO";
+        case ALM_IDENTIFICACION: return "ALM_IDENTIFICACION";
+        case ALM_ACTIVADO:       return "ALM_ACTIVADO";
+        default:                 return "DESCONOCIDO";
+    }
+}
+
 
 static bool TimerService_Elapsed(uint32_t start, uint32_t delay) {
    return ((int32_t)(tickRead() - start) >= (int32_t)delay);
@@ -52,7 +66,6 @@ static bool check_pin(void) {
 /* acciones a realizar cuando PIN OK seg�n el prop�sito */
 static void pin_ingresado_correcto(void) { //PIN correcto
     if (pin_funcion == CODE_ACTION_ARM) {  //QUIERO ARMAR LA ALARMA
-        // pasar a ARMING
         estado = ALM_ARMANDO;
         t_estado = tickRead(); //obtengo el tiempo del sistema
         t_gracia = t_estado + ARM_DELAY_GRACIA_MS; //le sumo al tiempo del sistema el tiempo de gracia
@@ -61,7 +74,7 @@ static void pin_ingresado_correcto(void) { //PIN correcto
     else if (pin_funcion == CODE_ACTION_DISARM) { //QUIERO DESARMAR LA ALARMA-> apagar sirena y volver a reposo
         estado = ALM_DESARMADO;
          t_estado = tickRead();
-         gpioWrite(GPIO0, OFF); // Relay apagado
+         gpioWrite(PIN_SIRENA, OFF); // Relay apagado
          uartWriteString(UART_USB, "PIN correcto. Sistema desarmado.\r\n");
     }
     cancelar_pin_entrada();
@@ -70,26 +83,66 @@ static void pin_ingresado_correcto(void) { //PIN correcto
 /* pin incorrecto mientras estamos en GRACIA: contar intentos */
 static void pin_ingresado_fallo(void) { //PIN incorrecto
     uartWriteString(UART_USB, "PIN incorrecto\r\n");
-    if (estado == ALM_IDENTIFICACION && pin_funcion == CODE_ACTION_DISARM) {
+    if (pin_funcion == CODE_ACTION_DISARM && 
+       (estado == ALM_IDENTIFICACION || estado == ALM_ARMADO || estado == ALM_ARMANDO)) {
+        
         intentos_clave++;
+        
         char buf[64];
         snprintf(buf, sizeof(buf), "Intentos: %d/%d\r\n", intentos_clave, MAX_INTENTOS_CLAVE);
         uartWriteString(UART_USB, buf);
+        
         cancelar_pin_entrada();
+        
         if (intentos_clave >= MAX_INTENTOS_CLAVE) {
-            // activar alarma inmediatamente
+            // Se acabaron los intentos -> DISPARAR ALARMA
             estado = ALM_ACTIVADO;
             t_estado = tickRead();
-            gpioWrite(GPIO0, ON); // Sirena ON
-            uartWriteString(UART_USB, "Max intentos - Alarma ACTIVADA\r\n");
+            gpioWrite(PIN_SIRENA, ON); // Prender Sirena
+            gpioWrite(PIN_BUZZER, ON); // Prender Buzzer
+            uartWriteString(UART_USB, "Max intentos fallidos - Alarma ACTIVADA\r\n");
         }
     } else {
-        // otra situaci�n: solo cancelar entrada
+        // Si estaba desarmada o era otra acci�n, solo cancelamos
         cancelar_pin_entrada();
     }
 }
 
-/* procesa caracteres entrantes para PIN (no bloqueante) */
+void MEF_Alarm_ProcessPIN(const char *pin_ingresado) {
+   char buffer[64];
+  
+   // --- DEBUG: IMPRIMIR PIN INGRESADO ---
+    sprintf(buffer, "PIN ingresado (UI): [%s]\r\n", pin_ingresado);
+    uartWriteString(UART_USB, buffer);
+    // -------------------------------------
+   
+    // 1. Copiar el PIN del Keypad al buffer interno de la MEF
+    strncpy(pin_buffer, pin_ingresado, PIN_MAX_LONGITUD);
+    pin_buffer[PIN_MAX_LONGITUD] = '\0';
+
+    // 2. Ejecutar la l�gica de verificaci�n (similar a presionar '#')
+    if (check_pin()) {
+        pin_ingresado_correcto();
+       sprintf(buffer, "Buen pin.\r\n");
+    } else {
+        pin_ingresado_fallo();
+       sprintf(buffer, "Mal pin.\r\n");
+    }
+    uartWriteString(UART_USB, buffer);
+}
+
+bool MEF_Alarm_VerificarPin(const char *pin_ingresado) {
+    if (pin_ingresado == NULL) return false;
+    // Compara el pin ingresado con el guardado
+    if (strcmp(pin_ingresado, pin_guardado) == 0) {
+        return true;
+    }
+    return false;
+}
+
+//todo esto al final no sirve xq es para el teclado fisico
+
+/* 
 static void process_input_chars(void) {
     char c;
     while (uartReadByte(UART_USB, &c)){ //saco un char de la cola
@@ -136,6 +189,8 @@ static void process_input_chars(void) {
     }
 }
 
+*/
+
 /* funciones p�blicas */
 
 void MEF_Alarm_Init(void) {
@@ -144,17 +199,23 @@ void MEF_Alarm_Init(void) {
     entrada_pin_activo = false;
     intentos_clave = 0;
    
-   /*
-    gpioWrite(GPIO0, OFF); // Sirena OFF
-      gpioWrite(LEDR, OFF);
-      gpioWrite(LEDG, OFF);
-   */
+    // --- INICIALIZACI�N---
+    gpioInit(PIN_SIRENA, GPIO_OUTPUT); // Sirena
+    gpioWrite(PIN_SIRENA, OFF);
+   
+    gpioInit(PIN_BUZZER, GPIO_OUTPUT);
+    gpioWrite(PIN_BUZZER, OFF);
+
+    // Configurar PIR como entrada
+    gpioInit(PIN_PIR, GPIO_INPUT); 
+
+    // Configurar Magn�tico
+     gpioInit(PIN_MAGNETICO, GPIO_INPUT);
 }
 
 //ESTAS 3 FUNCIONES DE ACA ABAJO SON LAS LLAMADAS POR LA PANTALLA Y POR LA PAG WEB
 //SE ENCARGAN DE ARMAR LA ALARMA, DESARMAR LA ALARMA Y CAMBIAR CONTRASE�A (PIN)
 void MEF_Alarm_Pedido_Armar(void) {
-    // inicia entrada de PIN para armar
     pedido_entrada_PIN(CODE_ACTION_ARM, 20000u); // dar 20s para teclear PIN
 }
 
@@ -169,47 +230,85 @@ void MEF_Alarm_SetPIN(const char *pin) { //paso PIN por parametro, importante pa
     pin_guardado[PIN_MAX_LONGITUD] = '\0';
 }
 
-void MEF_Alarm_SetSensores(uint8_t sensores) { //la pagina o la pantalla eligen que sensores se usan, magnetico, movimiento o los 2
+void MEF_Alarm_SetSensores(uint8_t sensores) { 
     sensores_activados = sensores;
+    
+    // debug
+    char buf[64];
+    uartWriteString(UART_USB, "--- DEBUG CONFIGURACION ---\r\n");
+    sprintf(buf, "Valor recibido: %d\r\n", sensores);
+    uartWriteString(UART_USB, buf);
+
+    if (sensores_activados == SENSOR_MAGNETICO) {
+        uartWriteString(UART_USB, "Modo Activo: SOLO MAGNETICO (Bit 0)\r\n");
+    } 
+    else if (sensores_activados == SENSOR_MOVIMIENTO) {
+        uartWriteString(UART_USB, "Modo Activo: SOLO PIR (Bit 1)\r\n");
+    } 
+    else if (sensores_activados == SENSOR_AMBOS) {
+        uartWriteString(UART_USB, "Modo Activo: AMBOS (Bits 0 y 1)\r\n");
+    } 
+    else {
+        uartWriteString(UART_USB, "Modo Activo: DESCONOCIDO/ERROR\r\n");
+    }
+    uartWriteString(UART_USB, "---------------------------\r\n");
+}
+
+alarma_estado_t get_alarm_state(void) {
+    return estado;
+}
+
+bool_t get_pir_active_status(void) {
+    return sensor_pir_activo;
+}
+
+bool_t get_magnetico_active_status(void) {
+    return sensor_magnetico_activo;
+}
+
+uint8_t MEF_Alarm_GetSensoresConfigurados(void) {
+    return sensores_activados;
 }
 
 /* estado de la MEF: llamada en bucle principal */
 void MEF_Alarm_Update(void) {
     uint32_t t_sistema = tickRead();
+   
+   //esto no afecta en nada, solo imprime el estado por uart
+   static alarma_estado_t estado_anterior = -1; // Iniciamos en un valor inv�lido para que imprima la primera vez
+    if (estado != estado_anterior) {
+        char buffer_debug[64];
+        snprintf(buffer_debug, sizeof(buffer_debug), ">> ESTADO ALARMA: %s\r\n", estado_a_string(estado));
+        uartWriteString(UART_USB, buffer_debug);
+        
+        // Actualizamos el anterior para no volver a imprimir hasta que cambie de nuevo
+        estado_anterior = estado;
+    }
 
-    /* procesar entrada de caracteres si existe */
-    process_input_chars();
-
-    /* si hay entrada de PIN activa y expir� -> reacci�n seg�n acci�n */
-    //TODA ESTA LOGICA ES PARA MANEJAR AL MOMENTO EN QUE ENTRAS A TU CASA Y PASAS DE ESTADO ACTIVADO A IDENTIFICACION. SI PASAN LOS 60SEG PASAS A SONANDO
-    if(entrada_pin_activo && (int32_t)(t_sistema - entrada_pin_expiro) >= 0) {
-      uartWriteString(UART_USB, "Tiempo para ingresar PIN expirado\r\n");
-      if(pin_funcion == CODE_ACTION_DISARM && estado == ALM_IDENTIFICACION) {
-         estado = ALM_ACTIVADO;
-         t_estado = t_sistema;
-         gpioWrite(GPIO0, ON);
-         uartWriteString(UART_USB, "Ventana expiro - Alarma ACTIVADA\r\n");
-      }
-         cancelar_pin_entrada();
-      }
- 
 
     switch (estado) {
     case ALM_DESARMADO:
         // indicadores: LED1 apagado
         gpioWrite(LEDR, OFF);
-        // nada mas; MEF_Alarm_Pedido_Armar() inicia PIN entry para armar
+        gpioWrite(PIN_BUZZER, OFF);
         break;
 
     case ALM_ARMANDO:
-        // Mostrar LED intermitente o fijo (indicamos armado pr�ximo)
-        // al finalizar el tiempo pasamos a ARMED
+       // Hacer sonar el Buzzer intermitente
+        if ((t_sistema / 500) % 2) {
+            gpioWrite(PIN_BUZZER, ON);
+        } else {
+            gpioWrite(PIN_BUZZER, OFF);
+        }
+        
+      
         if (TimerService_Elapsed(t_gracia - ARM_DELAY_GRACIA_MS, ARM_DELAY_GRACIA_MS)) { // check t_sistema >= t_gracia
             if (TimerService_Elapsed(t_estado, ARM_DELAY_GRACIA_MS)) {
                 estado = ALM_ARMADO;
                  t_estado = t_sistema;
                  uartWriteString(UART_USB, "Sistema ARMADO\r\n");
-                 gpioWrite(LEDR, ON);//prendo sensores magneticos y de movimiento
+                 gpioWrite(PIN_BUZZER, OFF); //apago buzzer
+                 gpioWrite(LEDR, ON);       //prendo led rojo
             }
         }
         break;
@@ -217,47 +316,70 @@ void MEF_Alarm_Update(void) {
      case ALM_ARMADO: {
          gpioWrite(LEDR, ON);
          bool intruso = false;
-        if((sensores_activados & SENSOR_MAGNETICO) &&
-           (gpioRead(TEC1) || gpioRead(TEC2))) {
-           intruso = true;
+        
+        // 1. REVISION MAGNETICO
+        if ((sensores_activados & SENSOR_MAGNETICO)) {
+            // Solo entramos aqui si el magnetico esta habilitado
+            if (gpioRead(PIN_MAGNETICO) == LOW) { 
+                 uartWriteString(UART_USB, "DISPARO: Codigo detecto PIN_MAGNETICO en HIGH\r\n");
+                 intruso = true;
+            }
         }
-        if((sensores_activados & SENSOR_MOVIMIENTO) &&
-           gpioRead(TEC3)) {
-           intruso = true;
+         
+        // 2. REVISION PIR
+        if ((sensores_activados & SENSOR_MOVIMIENTO)) {
+            // Solo entramos aqui si el PIR esta habilitado
+            if (gpioRead(PIN_PIR) == HIGH) {
+                 uartWriteString(UART_USB, "DISPARO: Codigo detecto PIN_PIR en HIGH\r\n");
+                 intruso = true;
+            }
         }
-        if(intruso) {
-           estado = ALM_IDENTIFICACION;
-           t_estado = t_sistema;
-           t_fin_gracia = t_sistema + INGRESANDO_PIN_DELAY;
-           intentos_clave = 0;
-           pedido_entrada_PIN(CODE_ACTION_DISARM, INGRESANDO_PIN_DELAY);
-           uartWriteString(UART_USB, "Intrusion detectada: 60s para desarmar\r\n");
-           gpioWrite(LEDG, ON);
-        }
-     } break;
+
+            if (intruso) {
+                // Pasamos al estado de gracia para pedir PIN
+                estado = ALM_IDENTIFICACION;
+                t_estado = t_sistema;
+                t_fin_gracia = t_sistema + INGRESANDO_PIN_DELAY;
+                intentos_clave = 0;
+                
+                // Pedimos PIN para DESARMAR
+                pedido_entrada_PIN(CODE_ACTION_DISARM, INGRESANDO_PIN_DELAY);
+                
+                uartWriteString(UART_USB, "Intrusion detectada: Ingrese PIN para cancelar.\r\n");
+                gpioWrite(LEDG, ON); // Led Amarillo/Verde alerta
+            }
+        } break;
 
     case ALM_IDENTIFICACION:
-        // Si PIN correct� se manej� ya en pin_ingresado_correcto -> IDLE
+       if (t_sistema % 1000 == 0) { 
+        char buf[64];
+        snprintf(buf, sizeof(buf), "Time: %d, Start: %d, Diff: %d\r\n", 
+                 t_sistema, t_estado, (t_sistema - t_estado));
+        uartWriteString(UART_USB, buf);
+    }
         // Si tiempo expir� -> TRIGGERED
         if (TimerService_Elapsed(t_estado, INGRESANDO_PIN_DELAY)) { //veo si se venci� INGRESANDO_PIN_DELAY
             estado = ALM_ACTIVADO;
            t_estado = t_sistema;
-           gpioWrite(GPIO0, ON);
-           uartWriteString(UART_USB, "Tiempo expiro - ALARMA ACTIVADA\r\n");
+           gpioWrite(PIN_SIRENA, ON);
+           
+           uartWriteString(UART_USB, "�TIEMPO TERMIN�! SIRENA ACTIVADA\r\n");
            gpioWrite(LEDG, OFF);
         }
         break;
 
     case ALM_ACTIVADO:
         // Sirena encendida, parpadeo de LED
-        // implemento un parpadeo sencillo usando ms tick
-        if ((t_sistema / 500) & 1) {
+        gpioWrite(PIN_SIRENA, ON);
+    
+        // parpadeo facil de led
+        if ((t_sistema / 250) % 2) {
             gpioWrite(LEDG, ON);
+            gpioWrite(PIN_BUZZER, ON); // Buzzer tambi�n suena
         } else {
             gpioWrite(LEDG, OFF);
+            gpioWrite(PIN_BUZZER, OFF);
         }
-        // si el PIN fue ingresado correctamente en process_input_chars() -> pasa a IDLE. 
-        //Esta logica esta implementada en MEF_Alarm_Pedido_Desarmar
         break;
     }
 }

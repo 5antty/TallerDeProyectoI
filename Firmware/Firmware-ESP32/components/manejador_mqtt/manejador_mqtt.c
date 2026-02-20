@@ -1,4 +1,6 @@
 #include "manejador_mqtt.h"
+#include "manejo_uart.h"
+#include <string.h>
 
 esp_mqtt_client_handle_t mqttClient;
 #define MQTT_BROKER_URI "mqtt://broker.emqx.io" // cambiar por la ip del broker
@@ -28,7 +30,8 @@ void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event
     ESP_LOGD(TAG_MQTT, "Event dispatched from event loop base=%s, event_id=%" PRIi32, base, event_id);
     esp_mqtt_event_handle_t event = event_data;
     esp_mqtt_client_handle_t client = event->client;
-    int msg_id;
+    char topic[50];
+    char data[10];
     switch ((esp_mqtt_event_id_t)event_id)
     {
     case MQTT_EVENT_CONNECTED:
@@ -36,7 +39,8 @@ void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event
         // xTaskCreate(mqtt_publish_task, "mqtt_publish_task", 2048, NULL, 5, NULL);
         for (int i = 0; i < sizeof(topics) / sizeof(topics[0]); i++)
         {
-            esp_mqtt_client_subscribe(client, topics[i], 0);
+            int msg_id = esp_mqtt_client_subscribe(client, topics[i], 0);
+            ESP_LOGI(TAG_MQTT, "Suscribiéndose al topic: %s, msg_id=%d", topics[i], msg_id);
         }
         break;
 
@@ -45,8 +49,7 @@ void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event
         break;
 
     case MQTT_EVENT_SUBSCRIBED:
-        // ESP_LOGI(TAG_MQTT, "MQTT_EVENT_SUBSCRIBED, msg_id=%d, return code=0x%02x ", event->msg_id, (uint8_t)*event->data);
-        ESP_LOGI(TAG_MQTT, "Se SUSCRIBIÓ correctamente al topic => %.*s", event->topic_len, event->topic);
+        // ESP_LOGI(TAG_MQTT, "MQTT SE SUSCRIBIO, msg_id=%d, return code=0x%02x ", event->msg_id, (uint8_t)*event->data);
         break;
 
     case MQTT_EVENT_UNSUBSCRIBED:
@@ -58,8 +61,10 @@ void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event
         break;
 
     case MQTT_EVENT_DATA: // Me devuelve el mensaje que mando el broker
-        ESP_LOGI(TAG_MQTT, "Se RECIBIÓ un mensaje del broker MQTT: %.*s, del topic => %.*s", event->data_len, event->data, event->topic_len, event->topic);
-        // sendData(event->data);
+        memcpy(topic, event->topic, event->topic_len);
+        memcpy(data, event->data, event->data_len);
+        ESP_LOGI(TAG_MQTT, "Se RECIBIÓ un mensaje del broker MQTT: %s, del topic => %s", data, topic);
+        txCommand(topic, data);
         break;
 
     case MQTT_EVENT_ERROR:
@@ -93,7 +98,10 @@ void mqtt_start(void)
         .broker = {
             .address.uri = MQTT_BROKER_URI, // cambiar por la ip del broker
             .address.port = MQTT_PORT,
-        }};
+        },
+        .buffer.size = 2048,
+        .buffer.out_size = 2048,
+    };
 
     esp_mqtt_client_handle_t client = esp_mqtt_client_init(&mqtt_cfg);
     mqttClient = client;

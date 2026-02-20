@@ -9,8 +9,8 @@
 #include "esp_event.h"
 #include "esp_log.h"
 
-// #define WIFI_SSID "Telecentro-51a2"
-// #define WIFI_PASS "GAYC3EHQKTNH"
+#define WIFI_SSID "Telecentro-51a2"
+#define WIFI_PASS "GAYC3EHQKTNH"
 // #define WIFI_SSID "Cursos"
 // #define WIFI_PASS "Inge2022"
 #define EXAMPLE_ESP_MAXIMUM_RETRY 5

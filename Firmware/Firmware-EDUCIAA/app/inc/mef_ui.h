@@ -18,6 +18,7 @@ typedef enum {
 
 void MEF_UI_INIT(void);
 void UI_Update(void);
+void UI_UpdateRTC(void);
 
 void UI_ShowPantallaPrincipal(void);
 void UI_ShowPantallaAlarma(void);
@@ -26,6 +27,9 @@ void UI_ShowPantallaLuces(void);
 void UI_ShowPantallaConfigLuces(void);
 void UI_ShowPantallaTempHum(void);
 void UI_ShowPantallaConfigTempHum(void);
+void UI_UpdateAlarmStatus(void);
+
+void UI_InitStyles(void);
 
 
 #endif

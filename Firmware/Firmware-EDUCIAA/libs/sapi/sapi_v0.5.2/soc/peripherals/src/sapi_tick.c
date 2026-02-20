@@ -37,6 +37,7 @@
 
 /*==================[inclusions]=============================================*/
 
+#include "lvgl.h" 
 #include "sapi_tick.h"
 
 #ifdef TICK_OVER_RTOS
@@ -175,14 +176,20 @@ void tickPowerSet( bool_t power )
 //__attribute__ ((section(".after_vectors")))
 
 // SysTick Timer ISR Handler
-void tickerCallback( void )   // Before SysTick_Handler
+
+void tickerCallback( void )    // Before SysTick_Handler
 {
-   // Increment Tick counters
-   tickCounter++;
-   // Execute Tick Hook function if pointer is not NULL
-   if( (tickHookFunction != NULL) ) {
-      (* tickHookFunction )( callBackFuncParams );
-   }
+    // Increment Tick counters (SAPI)
+    tickCounter++;
+    
+    // ?? AÑADIDO: Incremento del contador de LVGL
+    lv_tick_inc(1); // Incrementa el contador de LVGL en 1 ms
+    
+    // Execute Tick Hook function if pointer is not NULL
+    if( (tickHookFunction != NULL) ) {
+        (* tickHookFunction )( callBackFuncParams );
+    }
 }
+
 
 /*==================[end of file]============================================*/

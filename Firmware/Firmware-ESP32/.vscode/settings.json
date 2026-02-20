@@ -28,5 +28,5 @@
     "esp_wifi.h": "c"
   },
   "C_Cpp.errorSquiggles": "disabled",
-  "idf.currentSetup": "c:\\Espressif\\frameworks\\esp-idf-v5.5.1"
+  "idf.currentSetup": "c:\\Espressif\\frameworks\\esp-idf-v5.5"
 }

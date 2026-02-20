@@ -2,41 +2,44 @@
 #define MEF_CALOVENTOR_H
 
 #include "sapi.h"
+#include <stdint.h>
+#include <stdbool.h>
 
-// --- Definiciones de hw
-#define CALOVENTOR_CALIENTE_PIN LEDR
-#define CALOVENTOR_FRIO_PIN     LED3
+// --- PINES DE HARDWARE (P1 Header) ---
+// Caloventor -> Pin 33 (T_FIL0)
+#define PIN_CALOVENTOR      T_FIL0 
+// Ventilador -> Pin 35 (T_FIL3)
+#define PIN_VENTILADOR      T_FIL3
 
-// --- Umbrales de Temperatura ---
-#define TEMP_UMBRAL_FRIO_C      22  // Si la temperatura es <= 22 se activa el calor.
-#define TEMP_UMBRAL_CALIENTE_C  26  // Si la temperatura es >= 26 se activa el frï¿½o.
-#define TEMP_HISTERESIS_C       1   // Histeresis por si el sensor tiene error
+// --- CONFIGURACIÓN DE TEMPERATURA ---
+#define TEMP_UMBRAL_CALOR   20.0f 
+#define TEMP_UMBRAL_FRIO    26.0f 
+#define TEMP_HISTERESIS     1.0f
+
 
 typedef enum {
-    CALO_OFF,           // 0. Todo apagado (temperatura en rango normal)
-    CALO_CALENTANDO,    // 1. Caloventor caliente encendido (Control Automï¿½tico)
-    CALO_ENFRIANDO,     // 2. Caloventor frï¿½o
-    CALO_MANUAL_OFF,    // 3. forzar apagado
-    CALO_MANUAL_CALOR,  // 4. forzar calor
-    CALO_MANUAL_FRIO    // 5. forzar frï¿½o
+    CALO_OFF = 0,           // Apagado total
+    CALO_AUTO_CALENTANDO,   // Automático: Prendido por frío
+    CALO_AUTO_ENFRIANDO,    // Automático: Prendido por calor
+    CALO_MANUAL_CALOR,      // Forzado Manualmente (Botón UI)
+    CALO_MANUAL_VENTILADOR  // Forzado Manualmente (Botón UI)
 } caloventor_estado_t;
 
-
 void MEF_Caloventor_Init(void);
+void MEF_Caloventor_Update(float temp_actual);
+
+// Comandos Manuales
+void MEF_Caloventor_SetCalor(void);      // Prende Caloventor, apaga Ventilador
+void MEF_Caloventor_SetVentilador(void); // Prende Ventilador, apaga Caloventor
+void MEF_Caloventor_SetOff(void);        // Apaga todo (Modo Manual OFF)
+void MEF_Caloventor_SetAuto(void);       // Vuelve al modo automático
 
 
-void MEF_Caloventor_Update(float temperatura_actual);
 
+// Getters
 caloventor_estado_t MEF_Caloventor_GetEstado(void);
+bool MEF_Caloventor_IsAuto(void); // Retorna TRUE si está en modo automático
+int MEF_Caloventor_GetUmbralFrio(void);
+int MEF_Caloventor_GetUmbralCaliente(void);
 
-
-void MEF_Caloventor_SetOff(void);
-
-void MEF_Caloventor_SetCalor(void);
-
-
-void MEF_Caloventor_SetFrio(void);
-
-void MEF_Caloventor_SetAuto(void);
-
-#endif 
+#endif

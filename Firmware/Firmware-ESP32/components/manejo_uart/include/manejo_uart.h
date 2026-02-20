@@ -18,6 +18,6 @@ extern char uart_buffer[RX_BUF_SIZE];
 extern uint8_t uart_data_ready;
 
 void uart_init(void);
-int sendData(const char *data);
+void txCommand(char *tipo, const char *datos);
 
 #endif

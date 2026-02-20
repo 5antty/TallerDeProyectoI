@@ -1,114 +1,133 @@
 #include "mef_caloventor.h"
+#include "manejo_uart.h"
 
-static caloventor_estado_t estado_caloventor;
+/*
+typedef enum {
+    CALO_OFF = 0,           // Apagado total
+    CALO_AUTO_CALENTANDO,   // Automï¿½tico: Prendido por frï¿½o
+    CALO_AUTO_ENFRIANDO,    // Automï¿½tico: Prendido por calor
+    CALO_MANUAL_CALOR,      // Forzado Manualmente (Botï¿½n UI)
+    CALO_MANUAL_VENTILADOR  // Forzado Manualmente (Botï¿½n UI)
+} caloventor_estado_t;
+*/
 
+static caloventor_estado_t estado_actual = CALO_OFF;
+static bool modo_automatico = true; // Empezamos en automï¿½tico por defecto
 
+// --- FUNCIONES PRIVADAS ---
 static void apagar_todo(void) {
-    gpioWrite(CALOVENTOR_CALIENTE_PIN, OFF);
-    gpioWrite(CALOVENTOR_FRIO_PIN, OFF);
-    // uartWriteString(UART_USB, "CALOVENTOR: Apagado.\r\n"); // Mensajes de debug opcionales
+    gpioWrite(PIN_CALOVENTOR, OFF);
+    gpioWrite(PIN_VENTILADOR, OFF);
 }
 
-static void encender_calor(void) {
-    gpioWrite(CALOVENTOR_CALIENTE_PIN, ON);
-    gpioWrite(CALOVENTOR_FRIO_PIN, OFF);
-    // uartWriteString(UART_USB, "CALOVENTOR: Encendiendo CALOR.\r\n");
+static void activar_caloventor(void) {
+    gpioWrite(PIN_VENTILADOR, OFF); 
+    gpioWrite(PIN_CALOVENTOR, ON);
 }
 
-static void encender_frio(void) {
-    gpioWrite(CALOVENTOR_CALIENTE_PIN, OFF);
-    gpioWrite(CALOVENTOR_FRIO_PIN, ON);
-    // uartWriteString(UART_USB, "CALOVENTOR: Encendiendo FRIO.\r\n");
+static void activar_ventilador(void) {
+    gpioWrite(PIN_CALOVENTOR, OFF); 
+    gpioWrite(PIN_VENTILADOR, ON);
 }
 
-// --- Inicialización ---
-
+// --- INICIALIZACIï¿½N ---
 void MEF_Caloventor_Init(void) {
-    estado_caloventor = CALO_OFF;
-    apagar_todo(); 
+    gpioInit(PIN_CALOVENTOR, GPIO_OUTPUT);
+    gpioInit(PIN_VENTILADOR, GPIO_OUTPUT);
+    apagar_todo();
+    modo_automatico = true;
+    estado_actual = CALO_OFF;
 }
 
-// ==========================================================
-// FUNCIONES PÚBLICAS DE CONTROL MANUAL (Llamadas por ESP32/Pantalla)
-// ==========================================================
+// --- SETTERS (CONTROL MANUAL DESDE PANTALLA) ---
+void MEF_Caloventor_SetCalor(void) {
+    modo_automatico = false; 
+    estado_actual = CALO_MANUAL_CALOR;
+    activar_caloventor();
+    txCmd('C', "ON");
+}
+
+void MEF_Caloventor_SetVentilador(void) {
+    modo_automatico = false;
+    estado_actual = CALO_MANUAL_VENTILADOR;
+    activar_ventilador();
+   txCmd('V', "ON");
+}
 
 void MEF_Caloventor_SetOff(void) {
-    estado_caloventor = CALO_MANUAL_OFF;
+    modo_automatico = false; // Queda en manual pero apagado
+    estado_actual = CALO_OFF;
     apagar_todo();
-    uartWriteString(UART_USB, "CALOVENTOR: Control manual - FORZAR APAGADO.\r\n");
-}
-
-void MEF_Caloventor_SetCalor(void) {
-    estado_caloventor = CALO_MANUAL_CALOR;
-    encender_calor();
-    uartWriteString(UART_USB, "CALOVENTOR: Control manual - FORZAR CALOR.\r\n");
-}
-
-void MEF_Caloventor_SetFrio(void) {
-    estado_caloventor = CALO_MANUAL_FRIO;
-    encender_frio();
-    uartWriteString(UART_USB, "CALOVENTOR: Control manual - FORZAR FRIO.\r\n");
+    txCmd('C', "OFF");
+    txCmd('V', "OFF");
 }
 
 void MEF_Caloventor_SetAuto(void) {
-    estado_caloventor = CALO_OFF; 
-    apagar_todo();
-    uartWriteString(UART_USB, "CALOVENTOR: Volviendo a Control AUTOMÁTICO.\r\n");
+    modo_automatico = true;
 }
 
-// ==========================================================
-// ACTUALIZACIÓN DE LA MEF
-// ==========================================================
+// --- GETTERS ---
+caloventor_estado_t MEF_Caloventor_GetEstado(void) {
+    return estado_actual;
+}
 
-void MEF_Caloventor_Update(float temperatura_actual) {
-    
-    // Si la MEF está en modo manual, no se hace nada, regulo todo con sensores
-    if (estado_caloventor == CALO_MANUAL_OFF || 
-        estado_caloventor == CALO_MANUAL_CALOR || 
-        estado_caloventor == CALO_MANUAL_FRIO) {
-        
-        // mantengo las salidas en su estado manual actual
-        return; 
-    }
-    
-    switch (estado_caloventor) {
+bool MEF_Caloventor_IsAuto(void) {
+    return modo_automatico;
+}
 
+int MEF_Caloventor_GetUmbralFrio(void) {
+    return (int)TEMP_UMBRAL_FRIO; // Casteamos a int para mostrar en pantalla
+}
+
+// Retorna el valor para ENCENDER EL CALOVENTOR (Ej: 20 grados)
+int MEF_Caloventor_GetUmbralCaliente(void) {
+    return (int)TEMP_UMBRAL_CALOR; // Casteamos a int para mostrar en pantalla
+}
+
+// --- BUCLE PRINCIPAL ---
+void MEF_Caloventor_Update(float temp_actual) {
+    
+    // Si estamos en manual, erl usuario decide que se hace
+    if (!modo_automatico) return;
+
+    // --- Lï¿½GICA AUTOMï¿½TICA ---
+    switch (estado_actual) {
         case CALO_OFF:
-            // Transición a CALOR
-            if (temperatura_actual <= TEMP_UMBRAL_FRIO_C) {
-                estado_caloventor = CALO_CALENTANDO;
-                encender_calor();
+        case CALO_AUTO_CALENTANDO: // Evaluamos si seguimos calentando o paramos
+            if (temp_actual < TEMP_UMBRAL_CALOR) {
+                if (estado_actual != CALO_AUTO_CALENTANDO) {
+                    activar_caloventor();
+                    estado_actual = CALO_AUTO_CALENTANDO;
+                }
+            } 
+            else if (temp_actual > TEMP_UMBRAL_FRIO) {
+                // Hace calor (> 26), prender ventilador
+                if (estado_actual != CALO_AUTO_ENFRIANDO) {
+                    activar_ventilador();
+                    estado_actual = CALO_AUTO_ENFRIANDO;
+                }
             }
-            // Transición a FRÍO
-            else if (temperatura_actual >= TEMP_UMBRAL_CALIENTE_C) {
-                estado_caloventor = CALO_ENFRIANDO;
-                encender_frio();
+            else {
+                // Zona muerta (ej: 23 grados), apagar todo
+                if (estado_actual != CALO_OFF) {
+                    apagar_todo();
+                    estado_actual = CALO_OFF;
+                }
             }
             break;
 
-        case CALO_CALENTANDO:
-            // Transición a APAGADO (con histéresis)
-            if (temperatura_actual > (TEMP_UMBRAL_FRIO_C + TEMP_HISTERESIS_C)) {
-                estado_caloventor = CALO_OFF;
+        case CALO_AUTO_ENFRIANDO:
+            // Si baja de 26 apagamos
+            if (temp_actual < (TEMP_UMBRAL_FRIO - TEMP_HISTERESIS)) {
                 apagar_todo();
-            }
-            break;
-
-        case CALO_ENFRIANDO:
-            // Transición a APAGADO (con histéresis)
-            if (temperatura_actual < (TEMP_UMBRAL_CALIENTE_C - TEMP_HISTERESIS_C)) {
-                estado_caloventor = CALO_OFF;
-                apagar_todo();
+                estado_actual = CALO_OFF;
             }
             break;
             
-        // Los estados manuales (CALO_MANUAL_...) son manejados por el "if" inicial y nunca
-        // entran en la lógica del switch para que la lógica automática no los anule.
         default:
+            // Si veniamos de manual y activaron auto, reseteamos a OFF para evaluar
+            estado_actual = CALO_OFF;
+            apagar_todo();
             break;
     }
-}
-
-caloventor_estado_t MEF_Caloventor_GetEstado(void) {
-    return estado_caloventor;
 }

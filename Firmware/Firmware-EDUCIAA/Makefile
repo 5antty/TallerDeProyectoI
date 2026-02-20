@@ -27,12 +27,15 @@ LVGL_BASE_PATH = $(PROJECT_PATH_AND_NAME)/vendor/lvgl
 LVGL_SRC_DIRS := $(shell find $(LVGL_BASE_PATH)/src -type d)
 
 # 2. Agregar TODOS los archivos .c encontrados en esas carpetas
-# Esta línea se usará más abajo al definir la variable SRC completa.
 # ======================================================================
 
 MODULES=$(sort $(dir $(wildcard libs/*/)))
 SRC=$(wildcard $(PROJECT_PATH_AND_NAME)/src/*.c)
 SRC+=$(foreach m, $(MODULES), $(wildcard $(m)/src/*.c))
+
+# AÑADIR FUENTES DE DRIVERS DE LVGL (Asumiendo que están en app/src/drivers)
+SRC+=$(wildcard $(PROJECT_PATH_AND_NAME)/src/drivers/*.c) 
+
 # AÑADIR FUENTES DE LVGL
 SRC+=$(foreach d, $(LVGL_SRC_DIRS), $(wildcard $(d)/*.c))
 
@@ -56,8 +59,9 @@ TARGET_NM=$(basename $(TARGET)).names.csv
 
 # AÑADIR RUTAS DE INCLUSIÓN DE LVGL
 INCLUDE_FLAGS=$(foreach m, $(MODULES), -I$(m)/inc) -I$(PROJECT_PATH_AND_NAME)/inc $(INCLUDES)
-INCLUDE_FLAGS+=-I$(LVGL_BASE_PATH) # Raíz de LVGL (para lvgl.h)
-INCLUDE_FLAGS+=-I$(LVGL_BASE_PATH)/src # Carpeta src de LVGL
+INCLUDE_FLAGS+=-I$(PROJECT_PATH_AND_NAME)/src/drivers # <--- INCLUSIÓN DEL PATH DE HEADERS DE DRIVERS
+INCLUDE_FLAGS+=-I$(LVGL_BASE_PATH) 
+INCLUDE_FLAGS+=-I$(LVGL_BASE_PATH)/src 
 
 # CORRECCIÓN DE ERROR: Usar solo el nombre del archivo, ya que 'inc' ya está en el path.
 DEFINES_FLAGS=$(foreach m, $(DEFINES), -D$(m))
@@ -88,11 +92,6 @@ endif
 CROSS=arm-none-eabi-
 CC=$(CROSS)gcc
 CXX=$(CROSS)g++
-ifeq ($(CXXSRC),)
-LD=$(CROSS)gcc
-else
-LD=$(CROSS)g++
-endif
 SIZE=$(CROSS)size
 LIST=$(CROSS)objdump -xdS
 OBJCOPY=$(CROSS)objcopy
@@ -129,7 +128,13 @@ $(OUT)/%.o: %.s
 
 $(TARGET): $(OBJECTS)
 	@echo LD $@...
-	$(Q)$(LD) $(LDFLAGS) -o $@ $(OBJECTS)
+ifeq ($(CXXSRC),)
+	# Use GCC for linking C projects
+	$(Q)$(CC) $(LDFLAGS) -o $@ $(OBJECTS)
+else
+	# Use G++ for linking C++ projects
+	$(Q)$(CXX) $(LDFLAGS) -o $@ $(OBJECTS)
+endif
 
 $(TARGET_BIN): $(TARGET)
 	$(Q)$(OBJCOPY) -v -O binary $< $@
