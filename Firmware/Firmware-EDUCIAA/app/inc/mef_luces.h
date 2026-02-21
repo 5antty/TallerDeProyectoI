@@ -12,8 +12,8 @@
 
 // Salidas a los Opto-Triacs (P2)
 
-#define PIN_TRIAC_1     GPIO2 // Pin 31
-#define PIN_TRIAC_2     GPIO4 // Pin 33
+#define PIN_TRIAC_1     LCDEN // Pin 25
+#define PIN_TRIAC_2     GPIO2 // Pin 31
 
 #define MAX_FOCOS 2
 

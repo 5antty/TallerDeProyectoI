@@ -14,10 +14,9 @@
 
 // --- DEFINICIONES DE PINES  --- en lvgl_drivers.h
 
-// PIN_PIR ESTA DECLARADO EN ALARMA.H PIN_PIR EN GPIO7
+// PIN_PIR ESTA DECLARADO EN ALARMA.H PIN_PIR EN GPIO6
 #define GPIO_DHT11 GPIO8
-#define PIN_LDR_DIGITAL LCD2
-
+#define PIN_LDR_DIGITAL GPIO7
 
 // --- VARIABLES GLOBALES Y LVGL ---
 static float ultima_temperatura_valida = 25.0;
@@ -119,22 +118,22 @@ bool_t get_current_luminosity(void)
 }
 
 uint8_t calcular_dia_semana(uint16_t anio, uint8_t mes, uint8_t dia)
-    {
-        static int t[] = {0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4};
-        anio -= mes < 3;
-        int resultado = (anio + anio / 4 - anio / 100 + anio / 400 + t[mes - 1] + dia) % 7;
+{
+    static int t[] = {0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4};
+    anio -= mes < 3;
+    int resultado = (anio + anio / 4 - anio / 100 + anio / 400 + t[mes - 1] + dia) % 7;
 
-        if (resultado == 0)
-            return 7;
-        return (uint8_t)resultado;
-    }
+    if (resultado == 0)
+        return 7;
+    return (uint8_t)resultado;
+}
 
 // --- Bucle principal ---
 
 int main(void)
 {
     boardInit();
-    
+
     // ====================================================
     // UART para comunicarse con ESP32
     // ====================================================
@@ -151,10 +150,8 @@ int main(void)
     // 1. INICIALIZACION DE HARDWARE
     // ====================================================
     dht11Init(GPIO_DHT11);
-    //gpioInit(PIN_PIR, GPIO_INPUT);
-    //gpioInit(PIN_LDR_DIGITAL, GPIO_INPUT);
-
-    
+    // gpioInit(PIN_PIR, GPIO_INPUT);
+    gpioInit(PIN_LDR_DIGITAL, GPIO_INPUT);
 
     // Inicializacion de RTC
     rtc_t hora_por_defecto = {
@@ -197,7 +194,7 @@ int main(void)
     t_ui_caloventor = tickRead();
     t_lvgl = tickRead();
     t_dht = tickRead();
-    
+
     t_uartESP = tickRead();
 
     t_pir_muestra = tickRead();
@@ -244,7 +241,7 @@ int main(void)
             t_alarma = ahora;
             MEF_Alarm_Update();
         }
-        
+
         // ----------------------------------------------------
         // TAREA 1.5: LEER UART232 POR EL ESP32 (cada 20 ms)
         // ----------------------------------------------------
@@ -269,11 +266,10 @@ int main(void)
         if ((int32_t)(ahora - t_dht) >= 5000)
         {
             t_dht = ahora;
-            
+
             float temp_leida = 0.0;
             float hum_leida = 0.0;
-            
-           
+
             if (dht11Read(&hum_leida, &temp_leida) == TRUE)
             {
                 ultima_temperatura_valida = temp_leida;
@@ -347,10 +343,12 @@ int main(void)
                 if (estado_ldr_actual == TRUE)
                 {
                     uartWriteString(UART_USB, "LDR DETECCIoN: Luz detectada (sobre umbral)!\r\n");
+                    gpioWrite(PIN_BUZZER, OFF); // Prender Buzzer
                 }
                 else
                 {
                     uartWriteString(UART_USB, "LDR SIN DETECCIoN: Oscuridad/Bajo umbral\r\n");
+                    gpioWrite(PIN_BUZZER, ON); // Prender Buzzer
                 }
                 // Actualizo el estado y la variable global
                 estado_ldr_anterior = estado_ldr_actual;

@@ -487,12 +487,12 @@ typedef struct {
     lv_obj_t * lbl_feedback; 
 } brillo_config_t;
 
-static brillo_config_t f1_b25 = {0, 23, NULL};
+static brillo_config_t f1_b25 = {0, 26, NULL};
 static brillo_config_t f1_b50 = {0, 40, NULL};
 static brillo_config_t f1_b75 = {0, 75, NULL};
 
 // Configuraciones de brillo Foco 2
-static brillo_config_t f2_b25 = {1, 23, NULL};
+static brillo_config_t f2_b25 = {1, 26, NULL};
 static brillo_config_t f2_b50 = {1, 40, NULL};
 static brillo_config_t f2_b75 = {1, 75, NULL};
 
@@ -531,7 +531,7 @@ static void callback_foco_on_off(lv_event_t * e) {
 
     if (encendido) {
 
-        MEF_Luz_SetMode(data->foco_id, LUZ_ON, 85); 
+        MEF_Luz_SetMode(data->foco_id, LUZ_ON, 80); 
     } else {
         // Al apagar
         MEF_Luz_SetMode(data->foco_id, LUZ_OFF, 0);
