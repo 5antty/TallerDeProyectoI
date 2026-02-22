@@ -796,10 +796,10 @@ static void callback_luz_modo_sensor(lv_event_t * e) {
     uartWriteString(UART_USB, activo ? "Luz Automatica ACTIVADA\r\n" : "Luz Automatica DESACTIVADA\r\n");
 
     // Foco ID 0 se usa por defecto
-    uint8_t foco_id = 0; 
     
     // 1. Llama a la API para establecer el modo de sensor de luz
-    MEF_Luz_SetMode(foco_id, SENSOR_LUZ, 0); 
+    MEF_Luz_SetMode(0, SENSOR_LUZ, 0); 
+    MEF_Luz_SetMode(1, SENSOR_LUZ, 0); 
     uartWriteString(UART_USB, "LUCES: Foco 1 configurado a Control Autom�tico (LDR).\r\n");
 }
 

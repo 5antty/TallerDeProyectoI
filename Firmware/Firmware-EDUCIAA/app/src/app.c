@@ -330,30 +330,22 @@ int main(void)
         // ----------------------------------------------------
         // TAREA 6: Lectura del Sensor LDR (cada 50 ms)
         // ----------------------------------------------------
-        if ((int32_t)(ahora - t_ldr) >= 50)
+        if ((int32_t)(ahora - t_ldr) >= 1000)
         {
             t_ldr = ahora;
 
             // Leo el estado del pin
             bool_t estado_ldr_actual = gpioRead(PIN_LDR_DIGITAL);
-
+            //ultima_luminosidad_valida = estado_ldr_actual;
+           
             // Verifico si el estado ha cambiado
             if (estado_ldr_actual != estado_ldr_anterior)
-            {
-                if (estado_ldr_actual == TRUE)
-                {
-                    uartWriteString(UART_USB, "LDR DETECCIoN: Luz detectada (sobre umbral)!\r\n");
-                    gpioWrite(PIN_BUZZER, OFF); // Prender Buzzer
-                }
-                else
-                {
-                    uartWriteString(UART_USB, "LDR SIN DETECCIoN: Oscuridad/Bajo umbral\r\n");
-                    gpioWrite(PIN_BUZZER, ON); // Prender Buzzer
-                }
+            //{
+                
                 // Actualizo el estado y la variable global
                 estado_ldr_anterior = estado_ldr_actual;
                 ultima_luminosidad_valida = estado_ldr_actual;
-            }
+            //}
         }
     }
 }

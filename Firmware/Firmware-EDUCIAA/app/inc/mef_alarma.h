@@ -8,7 +8,7 @@
 #define PIN_PIR GPIO6
 #define PIN_MAGNETICO T_FIL2
 #define PIN_SIRENA T_COL1
-#define PIN_BUZZER T_COL0
+#define PIN_BUZZER GPIO5
 
 #define ARM_DELAY_GRACIA_MS 5000u   // 30 seg
 #define INGRESANDO_PIN_DELAY 60000u // 1 min

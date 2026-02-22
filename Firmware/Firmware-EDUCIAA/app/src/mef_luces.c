@@ -166,7 +166,7 @@ void MEF_Luz_Update(void)
             break;
 
         case SENSOR_LUZ:
-            if (get_current_luminosity() == TRUE)
+            if (get_current_luminosity() == FALSE)
                 f->delay_disparo = 20;
             else
                 f->delay_disparo = SEMICICLO_TICKS + 50;
