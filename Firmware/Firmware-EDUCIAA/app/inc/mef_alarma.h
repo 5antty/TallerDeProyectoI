@@ -10,7 +10,7 @@
 #define PIN_SIRENA T_COL1
 #define PIN_BUZZER GPIO5
 
-#define ARM_DELAY_GRACIA_MS 5000u   // 30 seg
+#define ARM_DELAY_GRACIA_MS 30000u   // 30 seg
 #define INGRESANDO_PIN_DELAY 60000u // 1 min
 #define PIN_MAX_LONGITUD 6          // PIN de hasta 6 d�gitos
 #define MAX_INTENTOS_CLAVE 3

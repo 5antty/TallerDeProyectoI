@@ -1,6 +1,5 @@
 #include "manejo_uart.h"
 
-
 void procesar_mensaje(char *mensaje)
 {
     static char buffer[30];
@@ -85,50 +84,50 @@ void procesar_mensaje(char *mensaje)
         else if (datos[1] == 'F')
             MEF_Caloventor_SetOff();
         break;
-    /* case 'A':
-        if (datos[1] == 'N')
-            mqtt_publish("smarthome/web/alarma", "ON");
-        else if (datos[1] == 'F')
-            mqtt_publish("smarthome/web/alarma", "OFF");
-        break; */
     default:
         uartWriteString(UART_USB, "Tipo de mensaje desconocido\r\n");
     }
 }
 
-void leer_uart_esp32(void) {
+void leer_uart_esp32(void)
+{
     uint8_t data;
     char mensaje[MAX_MSG_SIZE];
     char c;
     int msg_idx = 0;
     bool recibiendo = false;
-    
-    
+
     // Leer todos los bytes disponibles
-    while(uartReadByte(UART_232, &data)) {
+    while (uartReadByte(UART_232, &data))
+    {
         uartWriteString(UART_USB, "RECIBI ALGO\r\n");
         c = (char)data;
-        
+
         // Detectar inicio de mensaje
-        if (c == '#') {
+        if (c == '#')
+        {
             recibiendo = true;
             msg_idx = 0;
             mensaje[msg_idx++] = c;
         }
         // Recibir datos
-        else if (recibiendo) {
-            if (msg_idx < MAX_MSG_SIZE - 1) {
+        else if (recibiendo)
+        {
+            if (msg_idx < MAX_MSG_SIZE - 1)
+            {
                 mensaje[msg_idx++] = c;
-                
+
                 // Detectar fin de mensaje
-                if ((c == '\n')||(c == '\r')) {
+                if ((c == '\n') || (c == '\r'))
+                {
                     mensaje[msg_idx] = '\0';
                     procesar_mensaje(mensaje);
                     recibiendo = false;
                     msg_idx = 0;
                 }
             }
-            else {
+            else
+            {
                 // Buffer overflow
                 uartWriteString(UART_USB, "WARN: Mensaje demasiado largo\r\n");
                 recibiendo = false;
@@ -164,13 +163,26 @@ void txCmd(char tipo, const char *datos)
         snprintf(mensaje, MAX_MSG_SIZE, "#S,%s*\r", datos);
         uartWriteString(UART_232, mensaje);
         break;
+
+    // case ALM_DESARMADO:
+    //     return "ALM_DESARMADO";
+    // case ALM_ARMANDO:
+    //     return "ALM_ARMANDO";
+    // case ALM_ARMADO:
+    //     return "ALM_ARMADO";
+    // case ALM_IDENTIFICACION:
+    //     return "ALM_IDENTIFICACION";
+    // case ALM_ACTIVADO:
+    //     return "ALM_ACTIVADO";
+    // default:
+    //     return "DESCONOCIDO";
     case 'A':
-        snprintf(mensaje, MAX_MSG_SIZE, "#A,%s*\r", datos);
+        snprintf(mensaje, MAX_MSG_SIZE, "#A,%s*\r", datos + 4);
         uartWriteString(UART_232, mensaje);
         break;
 
     default:
         break;
     }
-    uartWriteString(UART_USB, mensaje);//DEBUG
+    uartWriteString(UART_USB, mensaje); // DEBUG
 }

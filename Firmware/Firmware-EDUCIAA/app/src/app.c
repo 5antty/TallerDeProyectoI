@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+//ultimo-bata-si
 
 // --- DEFINICIONES DE PINES  --- en lvgl_drivers.h
 
@@ -29,6 +30,8 @@ static uint32_t t_ui_caloventor = 0;
 static uint32_t t_lvgl = 0;
 static uint32_t t_rtc_update = 0;
 static uint32_t t_ui_update_status = 0;
+static uint32_t t_magnetico=0;
+static uint32_t t_debug_alarma = 0;
 
 static bool_t estado_ldr_anterior = FALSE;
 static bool_t ultima_luminosidad_valida = FALSE;
@@ -201,9 +204,14 @@ int main(void)
     t_rtc_update = tickRead();
     t_ui_update_status = tickRead();
     t_ldr = tickRead();
-
+    t_debug_alarma = tickRead();
     uint32_t t_lvgl_tick = tickRead(); // Inicializa
-
+   
+   
+   static uint32_t t_magnetico = 0;
+   static bool_t estado_puerta_anterior = TRUE;
+   t_magnetico = tickRead();
+   
     while (true)
     {
         uint32_t ahora = tickRead();
@@ -280,10 +288,11 @@ int main(void)
             }
             else
             {
-                // uartWriteString(UART_USB, "DHT11: Error de lectura\r\n");
+                uartWriteString(UART_USB, "DHT11: Error de lectura\r\n");
             }
         }
 
+      
         // --- TAREA 4: MEF Caloventor y UI Update (cada 100 ms) ---
         if ((int32_t)(ahora - t_ui_caloventor) >= 100)
         {
@@ -300,8 +309,48 @@ int main(void)
 
             // Esta funcion es para cambiar la pantalla de mef alarma si esta activada o no
             // UI_UpdateAlarmStatus();
+        }  
+        
+   /*     
+        //PRUEBA DE TEMPERATURAS
+        // --- TAREA 4: MEF Caloventor y UI Update (cada 100 ms) ---
+    if ((int32_t)(ahora - t_ui_caloventor) >= 100)
+    {
+        t_ui_caloventor = ahora;
+        
+        // ==========================================
+        // SIMULADOR DE TEMPERATURA (Mock Dinámico)
+        // ==========================================
+        static float temp_simulada = 15.0; // Arranca con frio
+        static float paso = 0.2;           // Sube/baja 0.2 grados cada 100ms
+
+        // 1. Modificamos la temperatura
+        temp_simulada += paso;
+
+        // 2. Lógica de "Ping-Pong" (Rebote)
+        if (temp_simulada >= 35.0) {
+            paso = -0.2; // Llegó al tope de calor, empieza a enfriar
+        } 
+        else if (temp_simulada <= 15.0) {
+            paso = 0.2;  // Llegó al tope de frío, empieza a calentar
         }
 
+        // 3. Imprimimos el valor cada 1 segundo (10 ciclos de 100ms) para no saturar la terminal
+        static uint8_t contador_print = 0;
+        if (++contador_print >= 10) {
+            char buf_sim[60];
+            snprintf(buf_sim, sizeof(buf_sim), "SIMULADOR: Temp actual = %.1f C\r\n", temp_simulada);
+            uartWriteString(UART_USB, buf_sim);
+            contador_print = 0;
+        }
+
+        // 4. Inyectamos la variable a tu máquina de estados
+        MEF_Caloventor_Update(temp_simulada); 
+        // ==========================================
+
+        // ... resto de tu código de UI ...
+    }
+*/
         // ----------------------------------------------------
         // TAREA 5: Lectura del Sensor PIR (cada 50 ms)
         // ----------------------------------------------------
@@ -321,31 +370,88 @@ int main(void)
                 }
                 else
                 {
-                    uartWriteString(UART_USB, "PIR SIN DETECCIoN: Movimiento cesado\r\n");
+                    uartWriteString(UART_USB, "PIR SIN DETECCIoN: Movimiento termino\r\n");
                 }
                 // Actualizo el estado anterior
                 estado_pir_anterior = estado_pir_actual;
             }
         }
         // ----------------------------------------------------
-        // TAREA 6: Lectura del Sensor LDR (cada 50 ms)
+        // TAREA 6: Lectura del Sensor LDR (cada 1000 ms)
         // ----------------------------------------------------
         if ((int32_t)(ahora - t_ldr) >= 1000)
         {
             t_ldr = ahora;
 
-            // Leo el estado del pin
             bool_t estado_ldr_actual = gpioRead(PIN_LDR_DIGITAL);
-            //ultima_luminosidad_valida = estado_ldr_actual;
-           
-            // Verifico si el estado ha cambiado
+            
             if (estado_ldr_actual != estado_ldr_anterior)
-            //{
+            {
+                if (estado_ldr_actual == TRUE)
+                {
+                    // En la mayoría de estos módulos, HIGH (1) significa OSCURIDAD
+                    uartWriteString(UART_USB, "SENSOR LDR: Cambio a HIGH (1) - Está oscuro\r\n");
+                }
+                else
+                {
+                    // LOW (0) significa LUZ
+                    uartWriteString(UART_USB, "SENSOR LDR: Cambio a LOW (0) - Hay luz\r\n");
+                }
                 
-                // Actualizo el estado y la variable global
+                // 3. Actualizo el estado y la variable global
                 estado_ldr_anterior = estado_ldr_actual;
                 ultima_luminosidad_valida = estado_ldr_actual;
-            //}
+            }
         }
+        
+        // ----------------------------------------------------
+        // TAREA 7: Lectura del Sensor Magnético (cada 50 ms)
+        // ----------------------------------------------------
+        if ((int32_t)(ahora - t_magnetico) >= 50)
+        {
+            t_magnetico = ahora;
+
+            // 1. Leo el estado físico del pin
+            bool_t estado_puerta_actual = gpioRead(PIN_MAGNETICO);
+
+            // 2. Verifico si hubo un flanco (cambio de estado)
+            if (estado_puerta_actual != estado_puerta_anterior)
+            {
+                if (estado_puerta_actual == TRUE)
+                {
+                    // TRUE (1) = Hay 3.3V = El imán cerró el circuito
+                    uartWriteString(UART_USB, "SENSOR MAGNETICO: Puerta CERRADA.\r\n");
+                }
+                else
+                {
+                    // FALSE (0) = Hay 0V = El imán se alejó y la resistencia R1 tiró a GND
+                    uartWriteString(UART_USB, "SENSOR MAGNETICO: ¡Puerta ABIERTA!\r\n");
+                }
+                
+                // 3. Actualizo el estado anterior
+                estado_puerta_anterior = estado_puerta_actual;
+            }
+        }
+        
+        /*
+        if ((int32_t)(ahora - t_debug_alarma) >= 2000) {
+            t_debug_alarma = ahora;
+           
+            alarma_estado_t estado_actual = get_alarm_state();
+            const char * str_estado = "DESCONOCIDO";
+
+            switch (estado_actual) {
+                case ALM_DESARMADO: str_estado = "DESARMADO (Reposo)"; break;
+                case ALM_ARMANDO: str_estado = "ARMANDO (Tiempo de salida...)"; break;
+                case ALM_ARMADO: str_estado = "ARMADO (Vigilando sensores)"; break;
+                case ALM_IDENTIFICACION: str_estado = "IDENTIFICACION (Esperando PIN...)"; break;
+                case ALM_ACTIVADO: str_estado = "ACTIVADO (SIRENA SONANDO)"; break;
+            }
+
+            char buffer_debug[80];
+            snprintf(buffer_debug, sizeof(buffer_debug), "[DEBUG MAIN] Estado Alarma: %s\r\n", str_estado);
+            uartWriteString(UART_USB, buffer_debug);
+         }
+        */
     }
 }

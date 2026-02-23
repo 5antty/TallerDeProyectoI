@@ -159,8 +159,8 @@ void MEF_Luz_Update(void)
             }
             else
             {
-                f->delay_disparo = 15;
-                f->brillo = 85;
+                f->delay_disparo = 30;
+                f->brillo = 70;
                 // uartWriteString(UART_USB, "CMD: Timer iniciado. Luz aaa.\r\n");
             }
             break;
@@ -185,7 +185,7 @@ void MEF_Luz_Update(void)
                 else
                     encender = (ahora >= on || ahora < off);
 
-                f->delay_disparo = encender ? 15 : (SEMICICLO_TICKS + 50);
+                f->delay_disparo = encender ? 30 : (SEMICICLO_TICKS + 50);
             }
             break;
         }
@@ -257,8 +257,8 @@ void MEF_Luz_SetTimerDelay(uint8_t id, uint32_t duracion_ms)
 
     // 3. --- FIX CR�TICO: ENCENDIDO INMEDIATO ---
 
-    focos[id].brillo = 80;        // Para que la UI sepa que est� al 85%
-    focos[id].delay_disparo = 20; // Mismo valor que pusiste en el Update (1.5ms)
+    focos[id].brillo = 70;        // Para que la UI sepa que est� al 85%
+    focos[id].delay_disparo = 30; // Mismo valor que pusiste en el Update (1.5ms)
 }
 
 void MEF_Luz_SetRTC_OnTime(uint8_t id, uint8_t hora, uint8_t min)

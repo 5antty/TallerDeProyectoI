@@ -1060,6 +1060,8 @@ void UI_ShowKeypadInput(keypad_config_t * config) {
     } else {
          lv_obj_set_style_text_font(ta, &lv_font_montserrat_14, LV_PART_MAIN);
     }
+    lv_obj_set_style_text_color(ta, lv_color_white(), LV_PART_MAIN);
+    
     lv_obj_set_style_border_color(ta, lv_color_make(0x00, 0x80, 0xFF), LV_PART_MAIN); 
     lv_obj_set_style_border_width(ta, 2, LV_PART_MAIN);
     
@@ -1905,6 +1907,9 @@ void UI_ShowPantallaTempHum(void) {
     label_temp_value = lv_label_create(panel_datos);
     lv_label_set_text_fmt(label_temp_value, "%.1f C", get_current_temperature());
     lv_obj_align(label_temp_value, LV_ALIGN_TOP_MID, 0, 95);
+    
+        lv_obj_set_style_text_color(label_temp_value, lv_color_white(), LV_PART_MAIN);
+
 
     // HUMEDAD
     label_hum_txt = lv_label_create(panel_datos);
@@ -1916,6 +1921,9 @@ void UI_ShowPantallaTempHum(void) {
     label_hum_value = lv_label_create(panel_datos);
     lv_label_set_text_fmt(label_hum_value, "%.1f %%", get_current_humidity());
     lv_obj_align(label_hum_value, LV_ALIGN_TOP_MID, 0, 130);
+    
+            lv_obj_set_style_text_color(label_hum_value, lv_color_white(), LV_PART_MAIN);
+
     
     //feedback caloventor
     lv_obj_t * lbl_estado_calor = lv_label_create(panel_datos);

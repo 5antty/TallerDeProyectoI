@@ -3,8 +3,12 @@
 #include <string.h>
 
 esp_mqtt_client_handle_t mqttClient;
-#define MQTT_BROKER_URI "mqtt://broker.emqx.io" // cambiar por la ip del broker
+#define MQTT_BROKER_URI "mqtt://192.168.0.72" // cambiar por la ip del broker
 #define MQTT_PORT 1883
+// CREDENCIALES
+#define MQTT_USER "SMARTHOME_ESP32" // ← agregar
+#define MQTT_PASSWORD "51423"       // ← agregar
+
 static const char *TAG_MQTT = "mqtt";
 
 static char *topics[] = {
@@ -62,7 +66,9 @@ void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event
 
     case MQTT_EVENT_DATA: // Me devuelve el mensaje que mando el broker
         memcpy(topic, event->topic, event->topic_len);
+        topic[event->topic_len] = '\0';
         memcpy(data, event->data, event->data_len);
+        data[event->data_len] = '\0';
         ESP_LOGI(TAG_MQTT, "Se RECIBIÓ un mensaje del broker MQTT: %s, del topic => %s", data, topic);
         txCommand(topic, data);
         break;
@@ -98,6 +104,11 @@ void mqtt_start(void)
         .broker = {
             .address.uri = MQTT_BROKER_URI, // cambiar por la ip del broker
             .address.port = MQTT_PORT,
+        },
+        .credentials = {
+            // ← agregar este bloque
+            .username = MQTT_USER,
+            .authentication.password = MQTT_PASSWORD,
         },
         .buffer.size = 2048,
         .buffer.out_size = 2048,

@@ -80,11 +80,6 @@ void txCommand(char *tipo, const char *datos)
             snprintf(mensaje, MAX_MSG_SIZE, "#S,2,%s*\r", datos);
         sendData(mensaje);
         break;
-    case 'a':
-        snprintf(mensaje, MAX_MSG_SIZE, "#A,%s*\r", datos);
-        sendData(mensaje);
-        break;
-
     default:
         break;
     }
@@ -192,10 +187,7 @@ void procesar_mensaje(char *mensaje)
             mqtt_publish("smarthome/web/ventilador", "OFF");
         break;
     case 'A':
-        if (datos[1] == 'N')
-            mqtt_publish("smarthome/web/alarma", "ON");
-        else if (datos[1] == 'F')
-            mqtt_publish("smarthome/web/alarma", "OFF");
+        mqtt_publish("smarthome/web/alarma", datos);
         break;
     default:
         ESP_LOGW(TAG_UART, "Tipo de mensaje desconocido: %c", tipo);
