@@ -160,9 +160,9 @@ int main(void)
     rtc_t hora_por_defecto = {
         .year = 2026,
         .month = 2,
-        .mday = 3,
+        .mday = 23,
         .hour = 12,
-        .min = 0,
+        .min = 12,
         .sec = 0,
         .wday = 2};
 
@@ -170,16 +170,10 @@ int main(void)
 
     bool_t lectura_ok = rtcRead(&hora_actual);
 
-    if (!lectura_ok || hora_actual.year < 2025)
-    {
+    
         rtcInit(&hora_por_defecto);
         uartWriteString(UART_USB, "RTC: Hora invalida/reset, se configuro por defecto.\r\n");
-    }
-    else
-    {
-        rtcInit(&hora_actual);
-        uartWriteString(UART_USB, "RTC: Bateria OK. Hora mantenida.\r\n");
-    }
+    
 
     LVGL_Init_System();
 

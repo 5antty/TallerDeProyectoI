@@ -3,11 +3,11 @@
 #include <string.h>
 
 esp_mqtt_client_handle_t mqttClient;
-#define MQTT_BROKER_URI "mqtt://192.168.0.72" // cambiar por la ip del broker
+#define MQTT_BROKER_URI "mqtt://broker.emqx.io" // cambiar por la ip del broker
 #define MQTT_PORT 1883
 // CREDENCIALES
-#define MQTT_USER "SMARTHOME_ESP32" // ← agregar
-#define MQTT_PASSWORD "51423"       // ← agregar
+// #define MQTT_USER "SMARTHOME_ESP32" // ← agregar
+// #define MQTT_PASSWORD "51423"       // ← agregar
 
 static const char *TAG_MQTT = "mqtt";
 
@@ -105,13 +105,13 @@ void mqtt_start(void)
             .address.uri = MQTT_BROKER_URI, // cambiar por la ip del broker
             .address.port = MQTT_PORT,
         },
-        .credentials = {
+        /* .credentials = {
             // ← agregar este bloque
             .username = MQTT_USER,
             .authentication.password = MQTT_PASSWORD,
-        },
-        .buffer.size = 2048,
-        .buffer.out_size = 2048,
+        }, */
+        .buffer.size = 1024,
+        .buffer.out_size = 1024,
     };
 
     esp_mqtt_client_handle_t client = esp_mqtt_client_init(&mqtt_cfg);

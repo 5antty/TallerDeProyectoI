@@ -400,7 +400,7 @@ void UI_UpdateRTC(void) {
         }
 
         if (label_day_panel != NULL) {
-          lv_label_set_text(label_day_panel, dias_semana[2]);     //DEFAULT EN MARTES
+          lv_label_set_text(label_day_panel, dias_semana[1]);     //DEFAULT EN MARTES
            
            /*
           if (rtc_time.wday >= 1 && rtc_time.wday <= 7) {
